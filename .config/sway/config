@@ -9,7 +9,7 @@ set $right l
 set $term foot
 set $menu bemenu-run | xargs swaymsg exec --
 
-output * bg /usr/share/backgrounds/sway/Sway_Wallpaper_Blue_1920x1080.png fill
+output * bg ~/.local/share/wallpaper.jpg fill
 
 # This will lock your screen after 300 seconds of inactivity, then turn off
 # your displays after another 300 seconds, and turn your screens back on when
