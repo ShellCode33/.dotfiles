@@ -8,16 +8,18 @@ set $up k
 set $right l
 set $term foot
 set $menu bemenu-run | xargs swaymsg exec --
+set $wallpaper ~/.local/share/wallpaper.jpg
+set $lock swaylock --daemonize --ignore-empty-password --image $wallpaper
 
-output * bg ~/.local/share/wallpaper.jpg fill
+output * bg $wallpaper fill
 
 # This will lock your screen after 300 seconds of inactivity, then turn off
 # your displays after another 300 seconds, and turn your screens back on when
 # resumed. It will also lock your screen before your computer goes to sleep.
 exec swayidle -w \
-         timeout 300 'swaylock -f -c 000000' \
+         timeout 300 "$lock" \
          timeout 600 'swaymsg "output * power off"' resume 'swaymsg "output * power on"' \
-         before-sleep 'swaylock -f -c 000000'
+         before-sleep "$lock"
 
 # Cause I'm a dirty AZERTY user :)
 input * {
