@@ -17,7 +17,7 @@ on_error() {
 }
 
 link() {
-    orig_file="$dotfiles_location/$1"
+    orig_file="$dotfiles_dir/$1"
     if [ -n "$2" ]; then
         dest_file="$HOME/$2"
     else
