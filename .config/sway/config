@@ -1,0 +1,173 @@
+# Read `man 5 sway` for a complete reference.
+
+### Variables
+set $mod Mod4
+set $left h
+set $down j
+set $up k
+set $right l
+set $term foot
+set $menu bemenu-run | xargs swaymsg exec --
+
+output * bg /usr/share/backgrounds/sway/Sway_Wallpaper_Blue_1920x1080.png fill
+
+# This will lock your screen after 300 seconds of inactivity, then turn off
+# your displays after another 300 seconds, and turn your screens back on when
+# resumed. It will also lock your screen before your computer goes to sleep.
+exec swayidle -w \
+         timeout 300 'swaylock -f -c 000000' \
+         timeout 600 'swaymsg "output * power off"' resume 'swaymsg "output * power on"' \
+         before-sleep 'swaylock -f -c 000000'
+
+# Cause I'm a dirty AZERTY user :)
+input * {
+    xkb_layout "fr"
+}
+
+# Start a terminal
+bindsym $mod+Return exec $term
+
+# Kill focused window
+bindsym $mod+Shift+q kill
+
+# Start your launcher
+bindsym $mod+d exec $menu
+
+# Drag floating windows by holding down $mod and left mouse button.
+# Resize them with right mouse button + $mod.
+# Despite the name, also works for non-floating windows.
+# Change normal to inverse to use left mouse button for resizing and right
+# mouse button for dragging.
+floating_modifier $mod normal
+
+# Reload the configuration file
+bindsym $mod+Shift+c reload
+
+# Move your focus around
+bindsym $mod+$left focus left
+bindsym $mod+$down focus down
+bindsym $mod+$up focus up
+bindsym $mod+$right focus right
+
+# Move the focused window with the same, but add Shift
+bindsym $mod+Shift+$left move left
+bindsym $mod+Shift+$down move down
+bindsym $mod+Shift+$up move up
+bindsym $mod+Shift+$right move right
+
+# Switch to workspace
+bindsym $mod+ampersand  workspace number 1
+bindsym $mod+eacute     workspace number 2
+bindsym $mod+quotedbl   workspace number 3
+bindsym $mod+apostrophe workspace number 4
+bindsym $mod+parenleft  workspace number 5
+bindsym $mod+egrave     workspace number 6
+bindsym $mod+minus      workspace number 7
+bindsym $mod+underscore workspace number 8
+bindsym $mod+ccedilla   workspace number 9
+bindsym $mod+agrave     workspace number 10
+
+# Move focused container to workspace
+bindsym $mod+Shift+ampersand  move container to workspace number 1
+bindsym $mod+Shift+eacute     move container to workspace number 2
+bindsym $mod+Shift+quotedbl   move container to workspace number 3
+bindsym $mod+Shift+apostrophe move container to workspace number 4
+bindsym $mod+Shift+parenleft  move container to workspace number 5
+bindsym $mod+Shift+egrave     move container to workspace number 6
+bindsym $mod+Shift+minus      move container to workspace number 7
+bindsym $mod+Shift+underscore move container to workspace number 8
+bindsym $mod+Shift+ccedilla  move container to workspace number 9
+bindsym $mod+Shift+agrave     move container to workspace number 10
+
+# Note: workspaces can have any name you want, not just numbers.
+# We just use 1-10 as the default.
+
+# Layouts (TODO: dwm-like tiling)
+bindsym $mod+b splith
+bindsym $mod+v splitv
+
+# Switch the current container between different layout styles
+bindsym $mod+i layout stacking
+bindsym $mod+o layout tabbed
+bindsym $mod+p layout toggle split
+
+# Make the current focus fullscreen
+bindsym $mod+f fullscreen
+
+# Toggle the current focus between tiling and floating mode
+bindsym $mod+Shift+space floating toggle
+
+# Swap focus between the tiling area and the floating area
+bindsym $mod+space focus mode_toggle
+
+# Move the currently focused window to the scratchpad
+bindsym $mod+Shift+s move scratchpad
+
+# Show the next scratchpad window or hide the focused scratchpad window.
+# If there are multiple scratchpad windows, this command cycles through them.
+bindsym $mod+s scratchpad show
+
+# Resizing containers
+mode "resize" {
+    # left will shrink the containers width
+    # right will grow the containers width
+    # up will shrink the containers height
+    # down will grow the containers height
+    bindsym $left resize shrink width 10px
+    bindsym $down resize grow height 10px
+    bindsym $up resize shrink height 10px
+    bindsym $right resize grow width 10px
+
+    # Ditto, with arrow keys
+    bindsym Left resize shrink width 10px
+    bindsym Down resize grow height 10px
+    bindsym Up resize shrink height 10px
+    bindsym Right resize grow width 10px
+
+    # Return to default mode
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+bindsym $mod+r mode "resize"
+
+# Gruvbox colors
+set $text_color #fbf1c7
+set $primary    #cc241d
+set $background #282828
+set $urgent     #fb4934
+
+# Status bar
+bar {
+    position top
+    tray_output none
+
+    # When the status_command prints a new line to stdout, swaybar updates.
+    # The default just shows the current date and time.
+    status_command while date +'%Y-%m-%d %I:%M:%S %p'; do sleep 1; done
+
+    colors {
+        statusline $text_color
+        background $background
+        focused_workspace $primary $primary $text_color
+        active_workspace $primary $primary $text_color
+        urgent_workspace $urgent $urgent $text_color
+        inactive_workspace $background $background $text_color
+    }
+}
+
+# Graphical customization
+title_align center
+default_border pixel 1
+
+# border - border around titlebar
+# bg - titlebar background
+# text - text on titlebar
+# indicator - shown where new window will open
+# child_border - border around the window
+# class                 border      bg          text        indicator   child_border
+client.focused          $primary    $primary    $text_color $primary    $primary
+client.focused_inactive $background $background $text_color $background $background
+client.unfocused        $background $background $text_color $background $background
+client.urgent           $urgent     $urgent     $text_color $urgent     $urgent
+
+include /etc/sway/config.d/*
