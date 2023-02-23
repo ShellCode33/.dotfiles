@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euo pipefail
+set -eo pipefail
 trap on_error ERR
 exec 2> >(while read -r line; do echo -e "\e[01;31m$line\e[0m"; done)
 
