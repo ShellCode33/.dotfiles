@@ -2,9 +2,13 @@
 
 set -euo pipefail
 trap on_error ERR
-dotfiles_location="$(dirname "$0")"
-cd "$dotfiles_location"
 exec 2> >(while read -r line; do echo -e "\e[01;31m$line\e[0m"; done)
+
+dotfiles_dir="$(
+    cd "$(dirname "$0")"
+    pwd
+)"
+cd "$dotfiles_dir"
 
 on_error() {
     ret=$?
