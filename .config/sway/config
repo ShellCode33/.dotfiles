@@ -172,4 +172,6 @@ client.focused_inactive $background $background $text_color $background $backgro
 client.unfocused        $background $background $text_color $background $background
 client.urgent           $urgent     $urgent     $text_color $urgent     $urgent
 
+exec sway-stack-layout
+
 include /etc/sway/config.d/*

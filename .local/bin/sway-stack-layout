@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+# coding: utf-8
+
+"""
+Sway IPC tool that dynamically sets splitv and splith when a new window is open.
+It provides a DWM-like layout which is IMO far more useful and intuitive.
+
+On Arch Linux, you should install python-i3ipc for this to work.
+
+Credit: https://github.com/ViliamV/stacki3/blob/main/stacki3/__init__.py
+"""
+
+import asyncio
+
+from i3ipc import Event
+from i3ipc.aio import Connection
+
+SLAVE_WIDTH = 50
+
+def is_floating(container) -> bool:
+    return container.type == "floating_con"
+
+async def set_splitting(sway, _) -> None:
+    focused = (await sway.get_tree()).find_focused()
+
+    if focused is None:
+        return
+
+    workspace = focused.workspace()
+    tiled_windows = [leaf for leaf in workspace.leaves() if not is_floating(leaf)]
+    windows_count = len(tiled_windows)
+
+    if windows_count == 1:
+        await focused.command("splith")
+
+    elif windows_count == 2:
+        left, right = tiled_windows
+        await left.command("splitv")
+        await right.command("splitv")
+        await right.command(f"resize set width {SLAVE_WIDTH} ppt")
+
+async def main():
+    sway = await Connection(auto_reconnect=True).connect()
+    sway.on(Event.WINDOW_NEW, set_splitting)
+    sway.on(Event.WINDOW_CLOSE, set_splitting)
+    await sway.main()
+
+if __name__ == "__main__":
+    asyncio.run(main())
