@@ -19,6 +19,11 @@ export XDG_CONFIG_HOME="$HOME/.config"
 export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_STATE_HOME="$HOME/.local/state"
 
+# Home directories
+set -a
+. .config/user-dirs.dirs
+set +a
+
 # Force QT applications to use Wayland backend
 export QT_QPA_PLATFORM=wayland
 

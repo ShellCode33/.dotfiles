@@ -39,6 +39,7 @@ link ".config/sway"
 link ".config/zsh"
 
 link ".config/mimeapps.list"
+link ".config/user-dirs.dirs"
 
 link ".local/share/applications"
 link ".local/share/wallpaper.jpg"
@@ -50,3 +51,6 @@ git config --global user.name "ShellCode33"
 
 # Download icons pack (if you change it, don't forget to grep GruvboxPlus in the dotfiles)
 git clone --depth 1 https://github.com/SylEleuth/gruvbox-plus-icon-pack.git ~/.local/share/icons/GruvboxPlus
+
+# Create home directories
+cut -s -d'"' -f2 .dotfiles/.config/user-dirs.dirs | sed "s|\$HOME|$HOME|g" | xargs -L 1 mkdir -p
