@@ -37,4 +37,7 @@ export MOZ_WEBRENDER=1
 export ZDOTDIR="$XDG_CONFIG_HOME/zsh"
 
 # Start graphical server on user's current tty if not already running.
-[ "$(tty)" = "/dev/tty1" ] && ! pidof -s "$XDG_CURRENT_DESKTOP" >/dev/null 2>&1 && exec "$XDG_CURRENT_DESKTOP"
+if [ "$(tty)" = "/dev/tty1" ] && ! pidof -s "$XDG_CURRENT_DESKTOP" >/dev/null 2>&1
+then
+    exec "$XDG_CURRENT_DESKTOP" >"$XDG_STATE_HOME/$XDG_CURRENT_DESKTOP.log" 2>&1
+fi
