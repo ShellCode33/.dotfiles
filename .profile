@@ -9,7 +9,6 @@ export MANPAGER='nvim +Man!'
 export PAGER='most'
 export WORDCHARS='-_'
 export LANG='en_US.UTF-8'
-eval "$(command dircolors)" # sets LS_COLORS environment variable
 
 # Desktop related variables
 export XDG_SESSION_TYPE=wayland
@@ -23,6 +22,9 @@ export XDG_STATE_HOME="$HOME/.local/state"
 set -a
 . .config/user-dirs.dirs
 set +a
+
+# Set LS_COLORS environment variable
+source "$XDG_CONFIG_HOME/ls-colors"
 
 # Force QT applications to use Wayland backend
 export QT_QPA_PLATFORM=wayland
