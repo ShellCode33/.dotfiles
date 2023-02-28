@@ -17,6 +17,7 @@ export XDG_CACHE_HOME="$HOME/.cache"
 export XDG_CONFIG_HOME="$HOME/.config"
 export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_STATE_HOME="$HOME/.local/state"
+export XDG_BIN_HOME="$HOME/.local/bin" # /!\ Not in freedesktop spec /!\
 
 # Home directories
 set -a
@@ -24,7 +25,7 @@ set -a
 set +a
 
 # Set LS_COLORS environment variable
-source "$XDG_CONFIG_HOME/ls-colors"
+. "$XDG_CONFIG_HOME/ls-colors"
 
 # Force QT applications to use Wayland backend
 export QT_QPA_PLATFORM=wayland
@@ -39,5 +40,6 @@ export ZDOTDIR="$XDG_CONFIG_HOME/zsh"
 # Start graphical server on user's current tty if not already running.
 if [ "$(tty)" = "/dev/tty1" ] && ! pidof -s "$XDG_CURRENT_DESKTOP" >/dev/null 2>&1
 then
+    "$XDG_BIN_HOME"/load-gtk-conf # See comments inside the script for why this is needed
     exec "$XDG_CURRENT_DESKTOP" >"$XDG_STATE_HOME/$XDG_CURRENT_DESKTOP.log" 2>&1
 fi
