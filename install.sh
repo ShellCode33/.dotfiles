@@ -34,9 +34,12 @@ link() {
 
 link ".profile"
 
+link ".config/gtk-3.0"
 link ".config/dunst"
 link ".config/sway"
 link ".config/zsh"
+link ".config/chromium-flags.conf"
+link ".config/ls-colors"
 
 link ".config/mimeapps.list"
 link ".config/user-dirs.dirs"
@@ -48,9 +51,6 @@ link ".local/bin" # Maybe I should link individual executables instead of the wh
 # Global git config
 git config --global user.email "shellcode33@protonmail.ch"
 git config --global user.name "ShellCode33"
-
-# Download icons pack (if you change it, don't forget to grep GruvboxPlus in the dotfiles)
-git clone --depth 1 https://github.com/SylEleuth/gruvbox-plus-icon-pack.git ~/.local/share/icons/GruvboxPlus
 
 # Create home directories
 cut -s -d'"' -f2 .dotfiles/.config/user-dirs.dirs | sed "s|\$HOME|$HOME|g" | xargs -L 1 mkdir -p
