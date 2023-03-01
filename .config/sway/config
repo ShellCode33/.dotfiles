@@ -26,6 +26,8 @@ input * {
     xkb_layout "fr"
 }
 
+mouse_warping container
+
 # Start a terminal
 bindsym $mod+Return exec $term
 
@@ -84,7 +86,6 @@ bindsym $mod+Shift+agrave     move container to workspace number 10
 # Note: workspaces can have any name you want, not just numbers.
 # We just use 1-10 as the default.
 
-# Layouts (TODO: dwm-like tiling)
 bindsym $mod+b splith
 bindsym $mod+v splitv
 
@@ -145,7 +146,7 @@ bar {
 
     # When the status_command prints a new line to stdout, swaybar updates.
     # The default just shows the current date and time.
-    status_command while date +'%Y-%m-%d %I:%M:%S %p'; do sleep 1; done
+    status_command "$XDG_BIN_HOME/status-bar"
 
     colors {
         statusline $text_color
