@@ -1,0 +1,218 @@
+#!/usr/bin/env python3
+# coding: utf-8
+
+from typing import Optional, Tuple, Union, Callable
+import psutil
+import subprocess
+from time import sleep
+from datetime import datetime
+from os.path import exists
+
+UPDATE_INTERVAL = 5 # in seconds
+
+status_bar_list = []
+
+_last_counter_update = datetime.now()
+_last_upload_counter = 0
+_last_download_counter = 0
+
+class Widget:
+    def __init__(self, func: Callable, update_interval: Optional[int] = None, update_signal: Optional[int] = None):
+        self.update = func
+        self.update_interval = update_interval
+        self.update_signal = update_signal
+
+def notify(title: str, content: str = ""):
+    subprocess.run(
+        ["notify-send", title, content],
+        check=True,
+    )
+
+def speed_format(bytes_per_sec: Union[int, float]):
+    if bytes_per_sec < 100:
+        return f"{bytes_per_sec:5.1f} B/s"
+    elif bytes_per_sec < 100_000:
+        return f"{bytes_per_sec / 1_000:4.1f} KB/s"
+    elif bytes_per_sec < 100_000_000:
+        return f"{bytes_per_sec / 1_000_000:4.1f} MB/s"
+    else:
+        return f"{bytes_per_sec / 1_000_000_000:4.1f} GB/s"
+
+def widget_datetime(status_index: int):
+    status_bar_list[status_index] = datetime.now().strftime("%d/%m/%y %H:%M")
+
+def widget_resources(status_index: int):
+    cpu_usage_percent  = str(int(psutil.cpu_percent())).rjust(2)
+    ram_usage_percent = str(int(psutil.virtual_memory().percent)).rjust(2)
+    status_bar_list[status_index] = f"CPU: {cpu_usage_percent}% RAM: {ram_usage_percent}% ⚙"
+
+def widget_volume(status_index: int):
+    # TODO: rewrite for pipewire
+    status_bar_list[status_index] = f"420% 🔊"
+    return
+
+    default_sink = subprocess.check_output(["pactl", "get-default-sink"])
+    default_sink = default_sink.decode().strip()
+
+    sink_config = subprocess.check_output(["pactl", "get-sink-volume", default_sink])
+    sink_config = sink_config.decode()
+    begin = sink_config.find("/")
+    
+    if begin == -1:
+        raise ValueError(f"Couln't parse sink config: {sink_config}")
+
+    begin += 1
+    while sink_config[begin] == " ":
+        begin += 1
+
+    end = sink_config.find(" ", begin)
+    
+    if end == -1:
+        raise ValueError(f"Couln't parse sink config: {sink_config}")
+
+    current_volume = sink_config[begin:end].rjust(4)
+
+    status_bar_list[status_index] = f"{current_volume} 🔊"
+
+def widget_battery(status_index: int):
+    with open("/sys/class/power_supply/BAT0/capacity", "r") as file:
+        battery_status = file.read().strip()
+
+    plugged_filename = "/sys/class/power_supply/AC0/online"
+
+    if not exists(plugged_filename):
+        plugged_filename = "/sys/class/power_supply/AC/online"
+
+    with open(plugged_filename, "r") as file:
+        plugged = bool(int(file.read().strip()))
+
+    status_bar_list[status_index] = f"{battery_status}% {'🔌' if plugged else '🔋'}"
+
+def _get_default_route() -> Tuple[str, str]:
+    ip = ""
+    iface = ""
+
+    routes = subprocess.check_output(["ip", "route"]).decode()
+    
+    for route in routes.split("\n"):
+        if route.startswith("default"):
+            begin = route.find("dev")
+            
+            if begin == -1:
+                raise ValueError(f"Couln't parse route: {route}")
+
+            begin += 4
+            end = route.find(" ", begin)
+            
+            if end == -1:
+                raise ValueError(f"Couln't parse route: {route}")
+
+            iface = route[begin:end].strip()
+            break
+
+    if iface:
+        iface_config = subprocess.check_output(["ip", "-brief", "address", "show", iface])
+    else:
+        iface_config = subprocess.check_output(["ip", "-brief", "address", "show"])
+        iface_config = iface_config.split(b"\n")[1]
+        iface = iface_config.split()[0].decode()
+
+    iface_config = iface_config.decode().split()
+
+    if iface_config[1] != "UP":
+        ip = iface_config[1]
+    else:
+        ip = iface_config[2].split("/")[0]
+
+    return ip, iface
+
+def _get_network_speed(default_iface: str) -> Tuple[str, str]:
+    global _last_counter_update, _last_upload_counter, _last_download_counter
+
+    counters = psutil.net_io_counters(pernic=True)[default_iface]
+    now = datetime.now()
+
+    time_elapsed = (now - _last_counter_update).total_seconds()
+    _last_counter_update = now
+
+    dl_bytes_per_sec = (counters.bytes_recv - _last_download_counter) // time_elapsed
+    ul_bytes_per_sec = (counters.bytes_sent - _last_upload_counter) // time_elapsed
+
+    _last_download_counter = counters.bytes_recv
+    _last_upload_counter = counters.bytes_sent
+
+    if time_elapsed < 1:
+        return speed_format(0), speed_format(0)
+
+    return speed_format(dl_bytes_per_sec), speed_format(ul_bytes_per_sec)
+
+def widget_network(status_index: int):
+    ip, iface = _get_default_route()
+    download_speed, upload_speed = _get_network_speed(iface)
+    status_bar_list[status_index] = f"{ip} ({iface}) {download_speed} ⬇  {upload_speed} ⬆ " 
+
+def widget_mail(status_index: int):
+    status_bar_list[status_index] = "1337 📬"
+
+def widget_updates(status_index: int):
+    if exists("/usr/bin/yay"):
+        upgradable_packages = subprocess.check_output(["/usr/bin/yay", "-Qu"]).decode().strip()
+    elif exists("/usr/bin/pacman"):
+        upgradable_packages = subprocess.check_output(["/usr/bin/pacman", "-Qu"]).decode().strip()
+    elif exists("/usr/bin/apt"):
+        upgradable_packages = subprocess.check_output(["/usr/bin/apt", "list", "--upgradable"]).decode().strip()
+    else:
+        raise FileNotFoundError("Couldn't find any package manager")
+
+    upgradable_packages_count = len(upgradable_packages.split("\n"))
+    status_bar_list[status_index] = f"{upgradable_packages_count} 🐛"
+
+
+def update_bar():
+    status_bar = " | ".join(status_bar_list)
+    print(status_bar, flush=True)
+
+def main():
+    widgets = [
+        Widget(widget_resources, update_interval=3),
+        Widget(widget_network, update_interval=3),
+        Widget(widget_mail, update_interval=60),
+        Widget(widget_updates, update_signal=1337, update_interval=60 * 10),
+        Widget(widget_volume, update_signal=1337, update_interval=3),
+        Widget(widget_datetime, update_interval=3),
+        Widget(widget_battery, update_interval=3),
+    ]
+
+    for i, widget in enumerate(widgets):
+        status_bar_list.append("Pending...")
+        try:
+            widget.update(i)
+        except Exception as exc:
+            notify(f"❌ {widget.update.__name__} failed:\n{exc}")
+
+    min_update_interval = min([w.update_interval for w in widgets if w.update_interval])
+
+    previous_datetime = datetime.now()
+    while True:
+        now = datetime.now()
+        delta_sec = (now - previous_datetime).total_seconds()
+
+        has_updates = False
+
+        for i, widget in enumerate(widgets):
+            if widget.update_interval and widget.update_interval <= delta_sec:
+                try:
+                    widget.update(i)
+                except Exception as exc:
+                    status_bar_list[i] = "ERROR"
+
+                has_updates = True
+
+        if has_updates:
+            update_bar()
+
+        previous_datetime = now
+        sleep(min_update_interval)
+
+if __name__ == "__main__":
+    main()
