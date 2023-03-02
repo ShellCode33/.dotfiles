@@ -48,10 +48,6 @@ link ".local/share/applications"
 link ".local/share/wallpaper.jpg"
 link ".local/bin" # Maybe I should link individual executables instead of the whole folder
 
-# Global git config
-git config --global user.email "shellcode33@protonmail.ch"
-git config --global user.name "ShellCode33"
-
 # Create home directories
 cut -s -d'"' -f2 .dotfiles/.config/user-dirs.dirs | sed "s|\$HOME|$HOME|g" | xargs -L 1 mkdir -p
 mkdir "$HOME/dev"
