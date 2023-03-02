@@ -54,3 +54,4 @@ git config --global user.name "ShellCode33"
 
 # Create home directories
 cut -s -d'"' -f2 .dotfiles/.config/user-dirs.dirs | sed "s|\$HOME|$HOME|g" | xargs -L 1 mkdir -p
+mkdir "$HOME/dev"
