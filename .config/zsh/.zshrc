@@ -113,6 +113,8 @@ bindkey "${terminfo[kcuu1]}" history-beginning-search-backward-end
 bindkey "${terminfo[kcud1]}" history-beginning-search-forward-end
 bindkey "^[[1;5D"            backward-word
 bindkey "^[[1;5C"            forward-word
+bindkey "^[[D"               backward-word
+bindkey "^[[C"               forward-word
 
 # Key bindings (tab completion)
 bindkey -M menuselect 'h' vi-backward-char
