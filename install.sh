@@ -34,12 +34,17 @@ link() {
 
 link ".profile"
 
+link ".config/fontconfig"
 link ".config/gtk-3.0"
 link ".config/dunst"
 link ".config/sway"
 link ".config/zsh"
-link ".config/chromium-flags.conf"
+link ".config/gdb"
+link ".config/git"
+
 link ".config/ls-colors"
+link ".config/chromium-flags.conf"
+link ".config/electron-flags.conf"
 
 link ".config/mimeapps.list"
 link ".config/user-dirs.dirs"
@@ -49,5 +54,5 @@ link ".local/share/wallpaper.jpg"
 link ".local/bin" # Maybe I should link individual executables instead of the whole folder
 
 # Create home directories
-cut -s -d'"' -f2 .dotfiles/.config/user-dirs.dirs | sed "s|\$HOME|$HOME|g" | xargs -L 1 mkdir -p
+cut -s -d'"' -f2 "$HOME/.config/user-dirs.dirs" | sed "s|\$HOME|$HOME|g" | xargs -L 1 mkdir -p
 mkdir "$HOME/dev"
