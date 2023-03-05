@@ -159,7 +159,7 @@ def widget_updates(status_index: int):
     else:
         raise FileNotFoundError("Couldn't find any package manager")
 
-    upgradable_packages_count = len(upgradable_packages.split("\n"))
+    upgradable_packages_count = len(upgradable_packages.split("\n")) if upgradable_packages else 0
     status_bar_list[status_index] = f"{upgradable_packages_count} 🐛"
 
 
