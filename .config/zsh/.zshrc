@@ -97,10 +97,13 @@ rootme() {
 # Tell the line editor to turn on "application" mode when it starts and turn it off when it stops.
 # This should make the use of khome, kend, kcuu1 and kcud1 portable across terminal emulators.
 # See https://zsh.sourceforge.io/FAQ/zshfaq03.html#l26
-function zle-line-init () { echoti smkx }
-function zle-line-finish () { echoti rmkx }
-zle -N zle-line-init
-zle -N zle-line-finish
+if [[ -v terminfo[smkx] ]]
+then
+    function zle-line-init () { echoti smkx }
+    function zle-line-finish () { echoti rmkx }
+    zle -N zle-line-init
+    zle -N zle-line-finish
+fi
 
 # Key bindings (man terminfo)
 bindkey "${terminfo[kdch1]}" delete-char
