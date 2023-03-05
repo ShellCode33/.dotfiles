@@ -132,6 +132,8 @@ alias vim='nvim'
 alias gs='git status'
 alias xo='xdg-open'
 alias pandoc='sudo docker run --rm -v "$(pwd):/data" -u $(id -u):$(id -g) pandoc/latex'
+alias python3='ipython3'
+alias python='ipython'
 
 # Checking requirements to make sure this zshrc is usable
 requirements=(nvim fzf most docker)
