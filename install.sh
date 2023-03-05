@@ -56,3 +56,4 @@ link ".local/bin" # Maybe I should link individual executables instead of the wh
 # Create home directories
 cut -s -d'"' -f2 "$HOME/.config/user-dirs.dirs" | sed "s|\$HOME|$HOME|g" | xargs -L 1 mkdir -p
 mkdir "$HOME/dev"
+mkdir "$HOME/.local/state"
