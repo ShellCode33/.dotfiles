@@ -146,7 +146,7 @@ bar {
 
     # When the status_command prints a new line to stdout, swaybar updates.
     # The default just shows the current date and time.
-    status_command "$XDG_BIN_HOME/status-bar"
+    status_command "$XDG_BIN_HOME/status-bar" 2>"$XDG_STATE_HOME/status-bar-errors.log"
 
     colors {
         statusline $text_color

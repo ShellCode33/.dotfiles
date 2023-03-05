@@ -3,6 +3,7 @@
 
 from typing import Optional, Tuple, Union, Callable
 import psutil
+import traceback
 import subprocess
 from time import sleep
 from datetime import datetime
@@ -189,6 +190,7 @@ def main():
             widget.update(i)
         except Exception as exc:
             notify(f"❌ {widget.update.__name__} failed:\n{exc}")
+            traceback.print_exc()
 
     min_update_interval = min([w.update_interval for w in widgets if w.update_interval])
 
@@ -205,6 +207,7 @@ def main():
                     widget.update(i)
                 except Exception as exc:
                     status_bar_list[i] = "ERROR"
+                    traceback.print_exc()
 
                 has_updates = True
 
