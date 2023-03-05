@@ -42,4 +42,7 @@ if [ "$(tty)" = "/dev/tty1" ] && ! pidof -s "$XDG_CURRENT_DESKTOP" >/dev/null 2>
 then
     "$XDG_BIN_HOME"/load-gtk-conf # See comments inside the script for why this is needed
     exec "$XDG_CURRENT_DESKTOP" >"$XDG_STATE_HOME/$XDG_CURRENT_DESKTOP.log" 2>&1
+else
+    export TMOUT=600
+    exec zsh
 fi
