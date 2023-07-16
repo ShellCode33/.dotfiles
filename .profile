@@ -45,7 +45,7 @@ export PYTHONSTARTUP="$XDG_CONFIG_HOME/python-startup.py"
 export IPYTHONDIR="$XDG_CACHE_HOME/ipython" # I don't plan to configure it, put it in XDG_CONFIG_HOME instead if you want
 
 # Run ssh-agent and export its variables
-eval $(ssh-agent)
+eval $(ssh-agent) > /dev/null
 
 # Start graphical server on user's current tty if not already running.
 if [ "$(tty)" = "/dev/tty1" ] && ! pidof -s "$XDG_CURRENT_DESKTOP" >/dev/null 2>&1
