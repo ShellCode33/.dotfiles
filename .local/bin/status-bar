@@ -42,32 +42,11 @@ def widget_resources(status_index: int):
     status_bar_list[status_index] = f"CPU: {cpu_usage_percent}% RAM: {ram_usage_percent}% ⚙"
 
 def widget_volume(status_index: int):
-    # TODO: rewrite for pipewire
-    status_bar_list[status_index] = f"420% 🔊"
-    return
+    wp_ctl_output = subprocess.check_output(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"])
+    wp_ctl_output = wp_ctl_output.decode().strip()
+    current_volume = str(int(float(wp_ctl_output.split()[1]) * 100)).rjust(4)
 
-    default_sink = subprocess.check_output(["pactl", "get-default-sink"])
-    default_sink = default_sink.decode().strip()
-
-    sink_config = subprocess.check_output(["pactl", "get-sink-volume", default_sink])
-    sink_config = sink_config.decode()
-    begin = sink_config.find("/")
-    
-    if begin == -1:
-        raise ValueError(f"Couln't parse sink config: {sink_config}")
-
-    begin += 1
-    while sink_config[begin] == " ":
-        begin += 1
-
-    end = sink_config.find(" ", begin)
-    
-    if end == -1:
-        raise ValueError(f"Couln't parse sink config: {sink_config}")
-
-    current_volume = sink_config[begin:end].rjust(4)
-
-    status_bar_list[status_index] = f"{current_volume} 🔊"
+    status_bar_list[status_index] = f"{current_volume}% 🔊"
 
 def widget_battery(status_index: int):
     with open("/sys/class/power_supply/BAT0/capacity", "r") as file:
@@ -153,7 +132,7 @@ def widget_updates(status_index: int):
     if exists("/usr/bin/yay"):
         upgradable_packages = subprocess.check_output(["/usr/bin/yay", "-Qu"]).decode().strip()
     elif exists("/usr/bin/pacman"):
-        upgradable_packages = subprocess.check_output(["/usr/bin/pacman", "-Qu"]).decode().strip()
+        upgradable_packages = subprocess.run(["/usr/bin/pacman", "-Qu"], stdout=subprocess.PIPE, check=False).stdout.decode().strip()
     elif exists("/usr/bin/apt"):
         upgradable_packages = subprocess.check_output(["/usr/bin/apt", "list", "--upgradable"]).decode().strip()
     else:
