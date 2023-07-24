@@ -141,6 +141,9 @@ alias python3='ipython3'
 alias python='ipython'
 alias su='su --pty' # https://www.errno.fr/TTYPushback.html
 
+# Shell specific environment variables (global ones should be in ~/.profile)
+export GPG_TTY="$(tty)"
+
 # Checking requirements to make sure this zshrc is usable
 requirements=(nvim fzf most docker)
 
