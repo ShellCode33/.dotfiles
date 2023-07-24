@@ -64,7 +64,7 @@ def insert_emoji():
 
     if choice:
         subprocess.run(
-            ["xdotool", "type", choice[0]],
+            ["wtype", choice[0]],
             check=True,
         )
 
