@@ -45,6 +45,7 @@ link ".config/git"
 link ".config/ls-colors"
 link ".config/chromium-flags.conf"
 link ".config/electron-flags.conf"
+link ".config/python-startup.py"
 
 link ".config/mimeapps.list"
 link ".config/user-dirs.dirs"
