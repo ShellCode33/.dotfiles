@@ -12,6 +12,7 @@ export LANG='en_US.UTF-8'
 
 # Desktop related variables
 export XDG_SESSION_TYPE=wayland
+export XDG_SESSION_DESKTOP=sway
 export XDG_CURRENT_DESKTOP=sway
 export XDG_CACHE_HOME="$HOME/.cache"
 export XDG_CONFIG_HOME="$HOME/.config"
@@ -30,6 +31,9 @@ set +a
 # Force QT applications to use Wayland backend
 export QT_QPA_PLATFORM=wayland
 
+# Force SDL applications to use Wayland backend
+export SDL_VIDEODRIVER=wayland
+
 # KeepassXC specific
 export KPXC_INITIAL_DIR="$XDG_DATA_HOME/keepassxc"
 
@@ -46,6 +50,9 @@ export IPYTHONDIR="$XDG_CACHE_HOME/ipython" # I don't plan to configure it, put 
 
 # Run ssh-agent and export its variables
 eval $(ssh-agent) > /dev/null
+
+# Import all the environment variables into both dbus and systemd
+dbus-update-activation-environment --systemd --all
 
 # Start graphical server on user's current tty if not already running.
 if [ "$(tty)" = "/dev/tty1" ] && ! pidof -s "$XDG_CURRENT_DESKTOP" >/dev/null 2>&1
