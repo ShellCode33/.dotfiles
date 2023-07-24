@@ -1,3 +1,6 @@
 [user]
 	name = ShellCode33
-	email = shellcode33@protonmail.ch
+	email = shellcode33@proton.me
+	signingkey = 8F94C574DA3B4DB0
+[commit]
+	gpgsign = true
