@@ -46,7 +46,10 @@ def widget_volume(status_index: int):
     wp_ctl_output = wp_ctl_output.decode().strip()
     current_volume = str(int(float(wp_ctl_output.split()[1]) * 100)).rjust(4)
 
-    status_bar_list[status_index] = f"{current_volume}% 🔊"
+    if "MUTED" in wp_ctl_output:
+        status_bar_list[status_index] = f"{current_volume}% 🔇"
+    else:
+        status_bar_list[status_index] = f"{current_volume}% 🔊"
 
 def widget_battery(status_index: int):
     with open("/sys/class/power_supply/BAT0/capacity", "r") as file:
