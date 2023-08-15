@@ -7,6 +7,16 @@ user_pref("keyword.enabled", true);
 // Use KeePassXC, not the built in password manager
 user_pref("signon.rememberSignons", false);
 
+// Proxy related (yes I use a local proxy by default, see https://github.com/ShellCode33/ArchLinux-Hardened/blob/master/docs/NETWORKING.md
+user_pref("network.proxy.type", 1);
+user_pref("network.proxy.share_proxy_settings", true);
+user_pref("network.proxy.socks_remote_dns", true);
+user_pref("network.proxy.http", "127.0.0.1");
+user_pref("network.proxy.http_port", 8080);
+user_pref("network.proxy.ssl", "127.0.0.1");
+user_pref("network.proxy.ssl_port", 8080);
+
+
 // DoH
 user_pref("network.trr.mode", 3);
 user_pref("network.trr.uri", "https://dns.quad9.net/dns-query");
