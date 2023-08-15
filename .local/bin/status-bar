@@ -130,7 +130,7 @@ def widget_mail(status_index: int):
 
 def widget_updates(status_index: int):
     if exists("/usr/bin/yay"):
-        upgradable_packages = subprocess.check_output(["/usr/bin/yay", "-Qu"]).decode().strip()
+        upgradable_packages = subprocess.run(["/usr/bin/yay", "-Qu"], stdout=subprocess.PIPE, check=False).stdout.decode().strip()
     elif exists("/usr/bin/pacman"):
         upgradable_packages = subprocess.run(["/usr/bin/pacman", "-Qu"], stdout=subprocess.PIPE, check=False).stdout.decode().strip()
     elif exists("/usr/bin/apt"):
@@ -151,7 +151,7 @@ def main():
         Widget(widget_resources, update_interval=3),
         Widget(widget_network, update_interval=3),
         Widget(widget_mail, update_interval=60),
-        Widget(widget_updates, update_signal=1337, update_interval=60 * 10),
+        Widget(widget_updates, update_signal=1337, update_interval=60 * 60),
         Widget(widget_volume, update_signal=1337, update_interval=3),
         Widget(widget_datetime, update_interval=3),
         Widget(widget_battery, update_interval=3),
@@ -175,7 +175,7 @@ def main():
         has_updates = False
 
         for i, widget in enumerate(widgets):
-            if (widget.update_interval and widget.update_interval <= delta_sec) or status_bar_list[i] == "ERROR":
+            if (widget.update_interval and widget.update_interval <= delta_sec):
                 try:
                     widget.update(i)
                 except Exception:
