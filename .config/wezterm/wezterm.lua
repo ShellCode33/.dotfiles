@@ -4,6 +4,9 @@ local wezterm = require("wezterm")
 -- This table will hold the configuration.
 local config = wezterm.config_builder()
 
+-- By default wezterm uses xterm-256color, but undercurls require custom terminfo data
+config.term = "wezterm"
+
 -- For example, changing the color scheme:
 config.color_scheme = "Gruvbox dark, hard (base16)"
 
