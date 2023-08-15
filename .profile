@@ -48,18 +48,28 @@ export ZDOTDIR="$XDG_CONFIG_HOME/zsh"
 export PYTHONSTARTUP="$XDG_CONFIG_HOME/python-startup.py"
 export IPYTHONDIR="$XDG_CACHE_HOME/ipython" # I don't plan to configure it, put it in XDG_CONFIG_HOME instead if you want
 
-# Run ssh-agent and export its variables
-eval $(ssh-agent) > /dev/null
+# Go specific
+export GOPATH="$XDG_DATA_HOME/go"
 
-# Import all the environment variables into both dbus and systemd
-dbus-update-activation-environment --systemd --all
+case "$(tty)" in
 
-# Start graphical server on user's current tty if not already running.
-if [ "$(tty)" = "/dev/tty1" ] && ! pidof -s "$XDG_CURRENT_DESKTOP" >/dev/null 2>&1
-then
-    "$XDG_BIN_HOME"/load-gtk-conf # See comments inside the script for why this is needed
-    exec "$XDG_CURRENT_DESKTOP" >"$XDG_STATE_HOME/$XDG_CURRENT_DESKTOP.log" 2>&1
-else
-    export TMOUT=600
-    exec zsh
-fi
+"/dev/tty1")
+	# Run ssh-agent and export its variables
+	eval $(ssh-agent) >/dev/null
+
+	# Import all the environment variables into both dbus and systemd
+	dbus-update-activation-environment --systemd --all
+
+	"$XDG_BIN_HOME"/load-gtk-conf # See comments inside the script for why this is needed
+	exec "$XDG_CURRENT_DESKTOP" >"$XDG_STATE_HOME/$XDG_CURRENT_DESKTOP.log" 2>&1
+	;;
+
+"/dev/tty"*)
+	export TMOUT=600
+	exec "$SHELL"
+	;;
+
+*)
+	exec "$SHELL"
+	;;
+esac
