@@ -12,6 +12,8 @@ application/pdf=pdf.desktop;
 image/png=img.desktop;
 image/jpeg=img.desktop;
 image/gif=img.desktop;
+image/svg=img.desktop;
+image/svg+xml=img.desktop;
 
 # Video and audio mimetypes extracted from mpv desktop file
 audio/aac=audio.desktop;
