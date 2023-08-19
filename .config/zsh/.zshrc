@@ -140,7 +140,7 @@ alias pandoc='sudo docker run --rm -v "$(pwd):/data" -u $(id -u):$(id -g) pandoc
 alias python3='ipython3'
 alias python='ipython'
 alias su='su --pty' # https://www.errno.fr/TTYPushback.html
-alias cat='bat --style=plain'
+alias cat='bat --style=plain --paging=never'
 
 # Shell specific environment variables (global ones should be in ~/.profile)
 export GPG_TTY="$(tty)"
