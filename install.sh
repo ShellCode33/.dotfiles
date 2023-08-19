@@ -61,3 +61,9 @@ link ".local/bin" # Maybe I should link individual executables instead of the wh
 cut -s -d'"' -f2 "$HOME/.config/user-dirs.dirs" | sed "s|\$HOME|$HOME|g" | xargs -L 1 mkdir -p
 mkdir "$HOME/dev"
 mkdir "$HOME/.local/state"
+
+# Source XDG variables
+source "$HOME/.config/user-dirs.dirs"
+
+# Mark download folder nodatacow
+chattr +C "$XDG_DOWNLOAD_DIR"
