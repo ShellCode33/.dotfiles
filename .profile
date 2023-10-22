@@ -51,6 +51,11 @@ export IPYTHONDIR="$XDG_CACHE_HOME/ipython" # I don't plan to configure it, put 
 # Go specific
 export GOPATH="$XDG_DATA_HOME/go"
 
+# NPM specific
+export NPM_CONFIG_USERCONFIG=$XDG_CONFIG_HOME/npm/config
+export NPM_CONFIG_CACHE=$XDG_CACHE_HOME/npm
+export NPM_CONFIG_TMP=$XDG_RUNTIME_DIR/npm
+
 case "$(tty)" in
 
 "/dev/tty1")
