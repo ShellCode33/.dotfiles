@@ -127,6 +127,7 @@ bindkey -s '^f' 'cd "$(dirname "$(fzf)")"\n'
 
 # Aliases
 alias sudo='sudo ' # so that other aliases expand when using sudo
+alias proxify='proxify ' # so that other aliases expand when using proxify
 alias cp="cp -i"
 alias grep='grep --color=auto'
 alias ls='ls --color=auto'
