@@ -1,4 +1,26 @@
 [tool.ruff]
-select = ["E", "F", "B", "W", "Q"]
+# Enable all diagnostics...
+select = ["ALL"]
+# ...except the ones that follow
+ignore = [
+    # THE IGNORE LIST MUST REMAIN SMALL, THINK TWICE BEFORE YOU ADD ANYTHING
+    #
+    # Rules documentation:
+    # https://docs.astral.sh/ruff/rules/
+    #
+    # The following is disabled because it would prevent us to commit if...
+    #
+    # ...there are FIXMEs and TODOs in the code
+    "FIX",
+    # ...TODOs are not properly formatted
+    "TD",
+    # ...class' __init__ doesnt have a docstring
+    "D107",
+    # ...self parameter is not typed
+    "ANN101",
+    # ...cls parameter is not typed
+    "ANN102",
+]
+# Match Black default
+line-length = 88
 fix = true
-line-length = 100
