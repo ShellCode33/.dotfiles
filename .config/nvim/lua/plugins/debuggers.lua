@@ -17,7 +17,7 @@ return {
           type = "executable",
           command = "/usr/bin/env",
           args = {
-            "python",
+            "python3",
             "-m",
             "debugpy.adapter",
           },
