@@ -3,19 +3,14 @@
 select = ["ALL"]
 # ...except the ones that follow
 ignore = [
-    # THE IGNORE LIST MUST REMAIN SMALL, THINK TWICE BEFORE YOU ADD ANYTHING
-    #
-    # Rules documentation:
-    # https://docs.astral.sh/ruff/rules/
-    #
-    # The following is disabled because it would prevent us to commit if...
+    # Don't emit diagnostics if...
     #
     # ...there are FIXMEs and TODOs in the code
     "FIX",
     # ...TODOs are not properly formatted
     "TD",
-    # ...class' __init__ doesnt have a docstring
-    "D107",
+    # ...you comment
+    "D10",
     # ...self parameter is not typed
     "ANN101",
     # ...cls parameter is not typed
