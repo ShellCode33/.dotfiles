@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
+
+import sys
+
+import subprocess
+from subprocess import check_output, CalledProcessError
+
+PACTL = "/usr/bin/pactl"
+
+
+def get_profiles() -> dict[str, list[str]]:
+    current_card = None
+    profiles_per_card = {}
+
+    stdout = check_output([PACTL, "list", "cards"]).decode()
+
+    for line in stdout.splitlines():
+        clean_line = line.strip()
+
+        if clean_line.startswith("Name: "):
+            _, device = clean_line.split(".", maxsplit=1)
+
+            if device in profiles_per_card:
+                error = "Device already in dict, didn't expect that"
+                raise ValueError(error)
+
+            current_card = device
+            profiles_per_card[device] = []
+
+        elif clean_line.startswith("output:"):
+            if current_card is None:
+                error = "current_card is still None, didn't expect that"
+                raise ValueError(error)
+
+            profile = clean_line.split(":")[1]
+            profiles_per_card[current_card].append(profile)
+
+    return profiles_per_card
+
+
+def set_device_profile(alsa_device: str, profile: str) -> None:
+    check_output(
+        [
+            PACTL,
+            "set-card-profile",
+            f"alsa_card.{alsa_device}",
+            f"output:{profile}",
+        ],
+        stderr=subprocess.STDOUT,
+    )
+
+
+def switch_profile(profile: str) -> None:
+    profiles_per_card = get_profiles()
+
+    if len(profiles_per_card) > 1:
+        error = "Not supporting more than one ALSA device"
+        raise NotImplementedError(error)
+
+    alsa_device, supported_profiles = next(iter(profiles_per_card.items()))
+
+    if profile not in supported_profiles:
+        print(f"Profile {profile} not found, supported profiles are:")
+
+        for supported_profile in supported_profiles:
+            print(f"- {supported_profile}")
+
+        sys.exit(1)
+
+    try:
+        set_device_profile(alsa_device, profile)
+    except CalledProcessError as cpe:
+        print(" ".join(cpe.cmd))
+        print(cpe.stdout.decode())
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} [PROFILE NAME]")
+        sys.exit(1)
+    switch_profile(sys.argv[1])
