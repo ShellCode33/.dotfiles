@@ -9,31 +9,30 @@ set $right l
 set $term wezterm
 set $menu bemenu-run | xargs swaymsg exec --
 set $wallpaper ~/.local/share/wallpaper.jpg
-set $lock dbus-send --print-reply --dest=org.keepassxc.KeePassXC.MainWindow /keepassxc org.keepassxc.KeePassXC.MainWindow.lockAllDatabases; swaylock --daemonize --ignore-empty-password --image $wallpaper
+set $lock ~/.local/bin/lock
 
-output * bg $wallpaper fill
+# Default display config
+output * {
+    bg $wallpaper fill
+}
 
-# This will lock your screen after 300 seconds of inactivity, then turn off
-# your displays after another 300 seconds, and turn your screens back on when
-# resumed. It will also lock your screen before your computer goes to sleep.
-exec swayidle -w \
-         timeout 300 "$lock" \
-         timeout 600 'swaymsg "output * power off"' resume 'swaymsg "output * power on"' \
-         before-sleep "$lock"
+# Builtin display of my laptop
+# See .config/kanshi/config for advanced screen configuration
+output "AU Optronics 0x142D Unknown" {
+    mode 1920x1080
+    scale 1.5
+}
 
 # Default keymap
 input * {
-  xkb_layout "us"
+    xkb_layout "fr"
+    repeat_delay 300
+    repeat_rate 150
 }
 
 # My laptop keyboard, find your own using 'swaymsg -t get_inputs | grep identifier'
-input 1:1:AT_Translated_Set_2_keyboard {
-  xkb_layout "fr"
-}
-
-# My laptop screen is small, increase its scale factor 'swaymsg -t get_outputs'
-output 'AU Optronics 0x142D Unknown' {
-  scale 1.5
+input 13364:560:Keychron_Keychron_K3_Pro {
+    xkb_layout "us"
 }
 
 mouse_warping container
@@ -225,7 +224,15 @@ client.focused_inactive $background $background $text_color $background $backgro
 client.unfocused        $background $background $text_color $background $background
 client.urgent           $urgent     $urgent     $text_color $urgent     $urgent
 
+
+# Lockscreen manager
+exec swayidle -w timeout 300 "$lock" before-sleep "$lock --force"
+
+# Mimic DWM
 exec sway-stack-layout
+
+# Monitors manager
+exec kanshi
 
 # Don't split into multiple exec statements !!
 # The dbus-update command is already done in ~/.profile but sway also sets important variables that must be imported
