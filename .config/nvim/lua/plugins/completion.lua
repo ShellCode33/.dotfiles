@@ -14,18 +14,14 @@ return {
     ---@param opts cmp.ConfigSchema
     opts = function(_, opts)
       local cmp = require("cmp")
-      opts.sources = cmp.config.sources(vim.list_extend(opts.sources, {
-        -- Plugin that injects spelling suggestions into the completion engine
-        {
-          name = "spell",
-          option = {
-            keep_all_entries = false,
-            enable_in_context = function()
-              return true
-            end,
-          },
-        },
-      }))
+      opts.sources = cmp.config.sources({
+        { name = "nvim_lsp" },
+        { name = "luasnip" },
+        { name = "path" },
+      }, {
+        { name = "buffer" },
+        { name = "spell" },
+      })
 
       local has_words_before = function()
         unpack = unpack or table.unpack
