@@ -31,7 +31,6 @@ return {
 
         -- Diagnostics
         nls.builtins.diagnostics.shellcheck,
-        nls.builtins.diagnostics.bandit,
       })
     end,
   },
