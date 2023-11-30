@@ -3,19 +3,24 @@
 select = ["ALL"]
 # ...except the ones that follow
 ignore = [
-    # Don't emit diagnostics if...
-    #
-    # ...there are FIXMEs and TODOs in the code
-    "FIX",
-    # ...TODOs are not properly formatted
-    "TD",
-    # ...you comment
-    "D10",
-    # ...self parameter is not typed
-    "ANN101",
-    # ...cls parameter is not typed
-    "ANN102",
+  # Don't emit diagnostics if...
+  #
+  # ...there are FIXMEs and TODOs in the code
+  "FIX",
+  # ...TODOs are not properly formatted
+  "TD",
+  # ...you don't comment
+  "D10",
+  # ...self parameter is not typed
+  "ANN101",
+  # ...cls parameter is not typed
+  "ANN102",
+  # ...print is used
+  "T201",
+  # ...subprocess is used
+  "S603",
+  # ...missing `from __future__ import annotations`
+  "FA100",
 ]
 # Match Black default
 line-length = 88
-fix = true
