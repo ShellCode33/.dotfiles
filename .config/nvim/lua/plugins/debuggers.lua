@@ -34,6 +34,7 @@ return {
       -- Update this to ensure that you have the debuggers for the langs you want
       "cppdbg", -- for both C and C++
       "python",
+      "codelldb",
     },
   },
 }
