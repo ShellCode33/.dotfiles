@@ -55,7 +55,7 @@ link ".config/python-startup.py"
 link ".config/mimeapps.list"
 link ".config/user-dirs.dirs"
 
-link ".mozilla/user-overrides.js"
+link ".mozilla/firefox/user-overrides.js"
 
 link ".local/share/applications"
 link ".local/share/wallpaper.jpg"
