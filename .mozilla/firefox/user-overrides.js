@@ -16,11 +16,10 @@ user_pref("network.proxy.http_port", 8080);
 user_pref("network.proxy.ssl", "127.0.0.1");
 user_pref("network.proxy.ssl_port", 8080);
 
-
 // DoH
 user_pref("network.trr.mode", 3);
 user_pref("network.trr.uri", "https://dns.quad9.net/dns-query");
-user_pref("network.trr.bootstrapAddr", "9.9.9.9"); // Quad9 as well
+user_pref("network.trr.custom_uri", "https://dns.quad9.net/dns-query");
 user_pref("network.dns.skipTRR-when-parental-control-enabled", false);
 
 // Make cert exceptions session only
