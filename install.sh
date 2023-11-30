@@ -71,3 +71,6 @@ source "$HOME/.config/user-dirs.dirs"
 
 # Mark download folder nodatacow
 chattr +C "$XDG_DOWNLOAD_DIR"
+
+# Configure Rust toolchain
+rustup default stable
