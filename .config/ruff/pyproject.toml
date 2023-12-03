@@ -17,10 +17,12 @@ ignore = [
   "ANN102",
   # ...print is used
   "T201",
-  # ...subprocess is used
+  # ...processes are being run is used
   "S603",
+  "S606",
   # ...missing `from __future__ import annotations`
   "FA100",
+  "FA102",
 ]
 # Match Black default
 line-length = 88
