@@ -5,7 +5,7 @@ export SHELL=/usr/bin/zsh
 # A few basics
 export PATH="/usr/local/bin:/usr/bin:$HOME/.local/bin"
 export EDITOR='nvim'
-export MANPAGER='nvim +Man!'
+export MANPAGER='nvim -n -i NONE +Man!'
 export PAGER='most'
 export WORDCHARS='-_'
 export LANG='en_US.UTF-8'
