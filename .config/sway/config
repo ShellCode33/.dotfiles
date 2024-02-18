@@ -9,7 +9,7 @@ set $right l
 set $term wezterm
 set $menu bemenu-run | xargs swaymsg exec --
 set $wallpaper ~/.local/share/wallpaper.jpg
-set $lock ~/.local/bin/lock
+set $lock lock
 
 # Default display config
 output * {
@@ -23,14 +23,14 @@ output "AU Optronics 0x142D Unknown" {
     scale 1.5
 }
 
-# Default keymap
+# Default keymap (builtin laptop keyboard)
 input * {
     xkb_layout "fr"
     repeat_delay 300
     repeat_rate 150
 }
 
-# My laptop keyboard, find your own using 'swaymsg -t get_inputs | grep identifier'
+# External keyboard, find your own using 'swaymsg -t get_inputs | grep identifier'
 input 13364:560:Keychron_Keychron_K3_Pro {
     xkb_layout "us"
 }
@@ -50,7 +50,7 @@ bindsym XF86AudioPrev exec playerctl previous
 bindsym XF86Search exec $menu
 
 # Lock the computer
-bindsym $mod+Ctrl+l exec "$lock"
+bindsym $mod+Ctrl+l exec "$lock" --force
 
 # Start a terminal
 bindsym $mod+Return exec $term
