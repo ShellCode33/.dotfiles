@@ -31,6 +31,9 @@ set +a
 # Force QT applications to use Wayland backend
 export QT_QPA_PLATFORM=wayland
 
+# Force Electron applications to use Wayland backend
+export ELECTRON_OZONE_PLATFORM_HINT=wayland
+
 # Force SDL applications to use Wayland backend
 export SDL_VIDEODRIVER=wayland
 
