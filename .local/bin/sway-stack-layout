@@ -27,11 +27,17 @@ async def set_splitting(sway, _) -> None:
         return
 
     workspace = focused.workspace()
-    tiled_windows = [leaf for leaf in workspace.leaves() if not is_floating(leaf)]
+    
+    tiled_windows = []
+    for leaf in workspace.leaves():
+        if not is_floating(leaf) and not leaf.fullscreen_mode:
+            tiled_windows.append(leaf)
+
     windows_count = len(tiled_windows)
 
     if windows_count == 1:
-        await focused.command("splith")
+        window = tiled_windows[0]
+        await window.command("splith")
 
     elif windows_count == 2:
         left, right = tiled_windows
