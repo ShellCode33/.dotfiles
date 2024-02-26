@@ -12,9 +12,9 @@ return {
         --
         -- "cr = true" (the default) means that if you type {<CR>} it will result in {<CR><cursor><CR>} so that the closing character is on its own line.
         mappings = {
-          ["("] = { action = "open", pair = "()", neigh_pattern = ".[^%a]" },
-          ["["] = { action = "open", pair = "[]", neigh_pattern = ".[^%a]" },
-          ["{"] = { action = "open", pair = "{}", neigh_pattern = ".[^%a]" },
+          ["("] = { action = "open", pair = "()", neigh_pattern = ".[%s%)%]%}>,]" },
+          ["["] = { action = "open", pair = "[]", neigh_pattern = ".[%s%)%]%}>,]" },
+          ["{"] = { action = "open", pair = "{}", neigh_pattern = ".[%s%)%]%}>,]" },
 
           [")"] = { action = "close", pair = "()", neigh_pattern = ".." },
           ["]"] = { action = "close", pair = "[]", neigh_pattern = ".." },
