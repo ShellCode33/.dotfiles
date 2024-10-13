@@ -2,15 +2,29 @@ profile {
     output "AU Optronics 0x142D Unknown" enable mode 1920x1080 scale 1.5 position 0,0
     exec switch-audio-profile analog-stereo
 }
-profile {
-    output "HKC OVERSEAS LIMITED L27000WHS 0000000000001" enable mode 1920x1080 scale 1 position 0,0
-    output "AU Optronics 0x142D Unknown" enable mode 1920x1080 scale 1.5 position 1920,360
-    exec switch-audio-profile analog-stereo
-}
 
 profile {
     output "AU Optronics 0x142D Unknown" disable
     output "Philips Consumer Electronics Company Philips FTV 0x00000101" enable mode 1920x1080 position 0,0 scale 1.5
+    exec switch-audio-profile hdmi-stereo
+}
+
+profile {
+    output "AU Optronics 0x142D Unknown" enable mode 1920x1080 scale 1.5 position 0,0
+    output "Iiyama North America PL2470H 0x33353933" enable mode 1920x1080 scale 1 position 1280,0
+    output "Iiyama North America PL2470H 0x33353938" enable mode 1920x1080 scale 1 position 3200,0
+    exec switch-audio-profile hdmi-stereo
+}
+
+profile {
+    output "AU Optronics 0x142D Unknown" enable mode 1920x1080 scale 1.5 position 0,0
+    output "Iiyama North America PL2470H 0x33353933" enable mode 1920x1080 scale 1 position 1280,0
+    exec switch-audio-profile hdmi-stereo
+}
+
+profile {
+    output "AU Optronics 0x142D Unknown" enable mode 1920x1080 scale 1.5 position 0,0
+    output "Iiyama North America PL2470H 0x33353938" enable mode 1920x1080 scale 1 position 1280,0
     exec switch-audio-profile hdmi-stereo
 }
 
