@@ -5,3 +5,9 @@ XDG_PUBLICSHARE_DIR="$HOME/public"
 XDG_MUSIC_DIR="$HOME/media/music"
 XDG_PICTURES_DIR="$HOME/media/pictures"
 XDG_VIDEOS_DIR="$HOME/media/videos"
+
+XDG_CACHE_HOME="$HOME/.cache"
+XDG_CONFIG_HOME="$HOME/.config"
+XDG_DATA_HOME="$HOME/.local/share"
+XDG_STATE_HOME="$HOME/.local/state"
+XDG_BIN_HOME="$HOME/.local/bin" # /!\ Not in freedesktop spec /!\
