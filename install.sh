@@ -5,31 +5,31 @@ trap on_error ERR
 exec 2> >(while read -r line; do echo -e "\e[01;31m$line\e[0m"; done)
 
 dotfiles_dir="$(
-	cd "$(dirname "$0")"
-	pwd
+  cd "$(dirname "$0")"
+  pwd
 )"
 cd "$dotfiles_dir"
 
 on_error() {
-	ret=$?
-	echo "[$0] Error on line $LINENO: $BASH_COMMAND"
-	exit $ret
+  ret=$?
+  echo "[$0] Error on line $LINENO: $BASH_COMMAND"
+  exit $ret
 }
 
 link() {
-	orig_file="$dotfiles_dir/$1"
-	if [ -n "$2" ]; then
-		dest_file="$HOME/$2"
-	else
-		dest_file="$HOME/$1"
-	fi
+  orig_file="$dotfiles_dir/$1"
+  if [ -n "$2" ]; then
+    dest_file="$HOME/$2"
+  else
+    dest_file="$HOME/$1"
+  fi
 
-	mkdir -p "$(dirname "$orig_file")"
-	mkdir -p "$(dirname "$dest_file")"
+  mkdir -p "$(dirname "$orig_file")"
+  mkdir -p "$(dirname "$dest_file")"
 
-	rm -rf "$dest_file"
-	ln -s "$orig_file" "$dest_file"
-	echo "$dest_file -> $orig_file"
+  rm -rf "$dest_file"
+  ln -s "$orig_file" "$dest_file"
+  echo "$dest_file -> $orig_file"
 }
 
 link ".profile"
@@ -64,7 +64,6 @@ link ".local/bin" # Maybe I should link individual executables instead of the wh
 # Create home directories
 cut -s -d'"' -f2 "$HOME/.config/user-dirs.dirs" | sed "s|\$HOME|$HOME|g" | xargs -L 1 mkdir -p
 mkdir "$HOME/dev"
-mkdir "$HOME/.local/state"
 
 # Source XDG variables
 source "$HOME/.config/user-dirs.dirs"
@@ -72,14 +71,25 @@ source "$HOME/.config/user-dirs.dirs"
 # Mark download folder nodatacow
 chattr +C "$XDG_DOWNLOAD_DIR"
 
+# Mark cache folder nodatacow
+chattr +C "$XDG_CACHE_HOME"
+
+# Mark firefox nodatacow
+mkdir -p "$HOME/.mozilla"
+chattr +C "$HOME/.mozilla"
+
+# Mark chromium nodatacow
+mkdir -p "$XDG_CONFIG_HOME/chromium"
+chattr +C "$XDG_CONFIG_HOME/chromium"
+
 # Configure Rust toolchain
 rustup default stable
 
 current_user="$(whoami)"
 if [ "$current_user" != "shellcode" ]; then
-	# Change my username by your own
-	grep -rl shellcode --exclude install.sh --exclude-dir .git | xargs sed -i "s/shellcode/$current_user/g"
+  # Change my username by your own
+  grep -rl shellcode --exclude install.sh --exclude-dir .git | xargs sed -i "s/shellcode/$current_user/g"
 
-	# Remove my git config, create your own if needed
-	rm .config/git/config
+  # Remove my git config, create your own if needed
+  rm .config/git/config
 fi
