@@ -9,7 +9,7 @@ from time import sleep
 from datetime import datetime
 from os.path import exists
 
-UPDATE_INTERVAL = 5 # in seconds
+UPDATE_INTERVAL = 5  # in seconds
 
 status_bar_list = []
 
@@ -17,11 +17,18 @@ _last_counter_update = datetime.now()
 _last_upload_counter = 0
 _last_download_counter = 0
 
+
 class Widget:
-    def __init__(self, func: Callable, update_interval: Optional[int] = None, update_signal: Optional[int] = None):
+    def __init__(
+        self,
+        func: Callable,
+        update_interval: Optional[int] = None,
+        update_signal: Optional[int] = None,
+    ):
         self.update = func
         self.update_interval = update_interval
         self.update_signal = update_signal
+
 
 def speed_format(bytes_per_sec: Union[int, float]):
     if bytes_per_sec < 100:
@@ -33,16 +40,23 @@ def speed_format(bytes_per_sec: Union[int, float]):
     else:
         return f"{bytes_per_sec / 1_000_000_000:4.1f} GB/s"
 
+
 def widget_datetime(status_index: int):
     status_bar_list[status_index] = datetime.now().strftime("%d/%m/%y %H:%M")
 
+
 def widget_resources(status_index: int):
-    cpu_usage_percent  = str(int(psutil.cpu_percent())).rjust(2)
+    cpu_usage_percent = str(int(psutil.cpu_percent())).rjust(2)
     ram_usage_percent = str(int(psutil.virtual_memory().percent)).rjust(2)
-    status_bar_list[status_index] = f"CPU: {cpu_usage_percent}% RAM: {ram_usage_percent}% ⚙"
+    status_bar_list[status_index] = (
+        f"CPU: {cpu_usage_percent}% RAM: {ram_usage_percent}% ⚙"
+    )
+
 
 def widget_volume(status_index: int):
-    wp_ctl_output = subprocess.check_output(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"])
+    wp_ctl_output = subprocess.check_output(
+        ["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"]
+    )
     wp_ctl_output = wp_ctl_output.decode().strip()
     current_volume = str(int(float(wp_ctl_output.split()[1]) * 100)).rjust(4)
 
@@ -50,6 +64,7 @@ def widget_volume(status_index: int):
         status_bar_list[status_index] = f"{current_volume}% 🔇"
     else:
         status_bar_list[status_index] = f"{current_volume}% 🔊"
+
 
 def widget_battery(status_index: int):
     with open("/sys/class/power_supply/BAT0/capacity", "r") as file:
@@ -65,22 +80,23 @@ def widget_battery(status_index: int):
 
     status_bar_list[status_index] = f"{battery_status}% {'🔌' if plugged else '🔋'}"
 
+
 def _get_default_route() -> Tuple[str, str]:
     ip = ""
     iface = ""
 
     routes = subprocess.check_output(["ip", "route"]).decode()
-    
+
     for route in routes.split("\n"):
         if route.startswith("default"):
             begin = route.find("dev")
-            
+
             if begin == -1:
                 raise ValueError(f"Couln't parse route: {route}")
 
             begin += 4
             end = route.find(" ", begin)
-            
+
             if end == -1:
                 raise ValueError(f"Couln't parse route: {route}")
 
@@ -88,7 +104,9 @@ def _get_default_route() -> Tuple[str, str]:
             break
 
     if iface:
-        iface_config = subprocess.check_output(["ip", "-brief", "address", "show", iface])
+        iface_config = subprocess.check_output(
+            ["ip", "-brief", "address", "show", iface]
+        )
     else:
         iface_config = subprocess.check_output(["ip", "-brief", "address", "show"])
         iface_config = iface_config.split(b"\n")[1]
@@ -102,6 +120,7 @@ def _get_default_route() -> Tuple[str, str]:
         ip = iface_config[2].split("/")[0]
 
     return ip, iface
+
 
 def _get_network_speed(default_iface: str) -> Tuple[str, str]:
     global _last_counter_update, _last_upload_counter, _last_download_counter
@@ -123,31 +142,53 @@ def _get_network_speed(default_iface: str) -> Tuple[str, str]:
 
     return speed_format(dl_bytes_per_sec), speed_format(ul_bytes_per_sec)
 
+
 def widget_network(status_index: int):
     ip, iface = _get_default_route()
     download_speed, upload_speed = _get_network_speed(iface)
-    status_bar_list[status_index] = f"{ip} ({iface}) {download_speed} ⬇  {upload_speed} ⬆ " 
+    status_bar_list[status_index] = (
+        f"{ip} ({iface}) {download_speed} ⬇  {upload_speed} ⬆ "
+    )
+
 
 def widget_mail(status_index: int):
     status_bar_list[status_index] = "1337 📬"
 
+
 def widget_updates(status_index: int):
     if exists("/usr/bin/yay"):
-        upgradable_packages = subprocess.run(["/usr/bin/yay", "-Qu"], stdout=subprocess.PIPE, check=False).stdout.decode().strip()
+        upgradable_packages = (
+            subprocess.run(["/usr/bin/yay", "-Qu"], stdout=subprocess.PIPE, check=False)
+            .stdout.decode()
+            .strip()
+        )
     elif exists("/usr/bin/pacman"):
-        upgradable_packages = subprocess.run(["/usr/bin/pacman", "-Qu"], stdout=subprocess.PIPE, check=False).stdout.decode().strip()
+        upgradable_packages = (
+            subprocess.run(
+                ["/usr/bin/pacman", "-Qu"], stdout=subprocess.PIPE, check=False
+            )
+            .stdout.decode()
+            .strip()
+        )
     elif exists("/usr/bin/apt"):
-        upgradable_packages = subprocess.check_output(["/usr/bin/apt", "list", "--upgradable"]).decode().strip()
+        upgradable_packages = (
+            subprocess.check_output(["/usr/bin/apt", "list", "--upgradable"])
+            .decode()
+            .strip()
+        )
     else:
         raise FileNotFoundError("Couldn't find any package manager")
 
-    upgradable_packages_count = len(upgradable_packages.split("\n")) if upgradable_packages else 0
+    upgradable_packages_count = (
+        len(upgradable_packages.split("\n")) if upgradable_packages else 0
+    )
     status_bar_list[status_index] = f"{upgradable_packages_count} 🐛"
 
 
 def update_bar():
     status_bar = " | ".join(status_bar_list)
     print(status_bar, flush=True)
+
 
 def main():
     widgets = [
@@ -157,8 +198,10 @@ def main():
         Widget(widget_updates, update_signal=1337, update_interval=60 * 60),
         Widget(widget_volume, update_signal=1337, update_interval=3),
         Widget(widget_datetime, update_interval=3),
-        Widget(widget_battery, update_interval=3),
     ]
+
+    if exists("/sys/class/power_supply/BAT0/capacity"):
+        Widget(widget_battery, update_interval=3)
 
     for i, widget in enumerate(widgets):
         status_bar_list.append("Pending...")
@@ -178,7 +221,7 @@ def main():
         has_updates = False
 
         for i, widget in enumerate(widgets):
-            if (widget.update_interval and widget.update_interval <= delta_sec):
+            if widget.update_interval and widget.update_interval <= delta_sec:
                 try:
                     widget.update(i)
                 except Exception:
@@ -192,6 +235,7 @@ def main():
 
         previous_datetime = now
         sleep(min_update_interval)
+
 
 if __name__ == "__main__":
     main()
