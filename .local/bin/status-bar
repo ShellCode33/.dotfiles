@@ -158,23 +158,19 @@ def widget_mail(status_index: int):
 def widget_updates(status_index: int):
     if exists("/usr/bin/yay"):
         upgradable_packages = (
-            subprocess.run(["/usr/bin/yay", "-Qu"], stdout=subprocess.PIPE, check=False)
+            subprocess.run(["yay", "-Qu"], stdout=subprocess.PIPE, check=False)
             .stdout.decode()
             .strip()
         )
     elif exists("/usr/bin/pacman"):
         upgradable_packages = (
-            subprocess.run(
-                ["/usr/bin/pacman", "-Qu"], stdout=subprocess.PIPE, check=False
-            )
+            subprocess.run(["pacman", "-Qu"], stdout=subprocess.PIPE, check=False)
             .stdout.decode()
             .strip()
         )
     elif exists("/usr/bin/apt"):
         upgradable_packages = (
-            subprocess.check_output(["/usr/bin/apt", "list", "--upgradable"])
-            .decode()
-            .strip()
+            subprocess.check_output(["apt", "list", "--upgradable"]).decode().strip()
         )
     else:
         raise FileNotFoundError("Couldn't find any package manager")
