@@ -75,7 +75,7 @@ window.assistant .sidebar > label.highlight { color: #ffffff; background-color: 
 
 window.aboutdialog image.large-icons { -gtk-icon-size: 128px; }
 
-toast, .osd .scale-popup, .osd popover.background > arrow, .osd popover.background > contents, popover.background.touch-selection > arrow, popover.background.touch-selection > contents, popover.background.magnifier > arrow, popover.background.magnifier > contents, .osd { color: #BAC3CF; border: none; background-color: rgba(53, 57, 69, 0.95); background-clip: padding-box; text-shadow: none; -gtk-icon-shadow: none; }
+toast, .osd .scale-popup, .osd popover.background > arrow, .osd popover.background > contents, popover.background.touch-selection > arrow, popover.background.touch-selection > contents, popover.background.magnifier > arrow, popover.background.magnifier > contents, .osd { color: #BAC3CF; border: none; background-color: rgba(40, 40, 40, 0.95); background-clip: padding-box; text-shadow: none; -gtk-icon-shadow: none; }
 
 /********************* Spinner Animation * */
 @keyframes spin { to { transform: rotate(1turn); } }
@@ -146,13 +146,13 @@ spinbutton text.password image.caps-lock-indicator, entry.password image.caps-lo
 
 spinbutton text:drop(active), entry:drop(active):focus-within, entry:drop(active) { border-color: #F08437; box-shadow: none; }
 
-.osd spinbutton text, spinbutton .osd text, .osd entry { color: #BAC3CF; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(102, 109, 132, 0.35); }
+.osd spinbutton text, spinbutton .osd text, .osd entry { color: #BAC3CF; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(96, 96, 96, 0.35); }
 
 .osd spinbutton text image, spinbutton .osd text image, .osd entry image, .osd entry image:hover { color: inherit; }
 
-.osd spinbutton text:focus-within, spinbutton .osd text:focus-within, .osd entry:focus-within { color: #ffffff; border-color: rgba(26, 28, 34, 0.35); background-color: #b71c1c; }
+.osd spinbutton text:focus-within, spinbutton .osd text:focus-within, .osd entry:focus-within { color: #ffffff; border-color: rgba(9, 9, 9, 0.35); background-color: #b71c1c; }
 
-.osd spinbutton text:disabled, spinbutton .osd text:disabled, .osd entry:disabled { color: rgba(186, 195, 207, 0.55); background-color: rgba(102, 109, 132, 0.2); }
+.osd spinbutton text:disabled, spinbutton .osd text:disabled, .osd entry:disabled { color: rgba(186, 195, 207, 0.55); background-color: rgba(96, 96, 96, 0.2); }
 
 .osd spinbutton text selection, spinbutton .osd text selection, .osd entry selection { color: #b71c1c; background-color: #ffffff; }
 
@@ -229,31 +229,31 @@ button.arrow-button > box { border-spacing: 4px; }
 
 dropdown:drop(active) button.combo, combobox:drop(active) button.combo, button:drop(active) { color: #F08437; border-color: #F08437; box-shadow: none; }
 
-button.osd { min-width: 26px; min-height: 32px; color: #BAC3CF; background-color: rgba(53, 57, 69, 0.95); border-color: rgba(35, 38, 46, 0.95); border-radius: 5px; box-shadow: none; }
+button.osd { min-width: 26px; min-height: 32px; color: #BAC3CF; background-color: rgba(40, 40, 40, 0.95); border-color: rgba(20, 20, 20, 0.95); border-radius: 5px; box-shadow: none; }
 
 button.osd.image-button { min-width: 34px; }
 
 button.osd:hover { color: #b71c1c; border: none; box-shadow: none; }
 
-button.osd:active, button.osd:checked { color: #ffffff; border-color: rgba(26, 28, 34, 0.35); background-color: #b71c1c; border: none; box-shadow: none; }
+button.osd:active, button.osd:checked { color: #ffffff; border-color: rgba(9, 9, 9, 0.35); background-color: #b71c1c; border: none; box-shadow: none; }
 
-button.osd:disabled { color: #5d626e; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(102, 109, 132, 0.2); border: none; }
+button.osd:disabled { color: #54575a; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(96, 96, 96, 0.2); border: none; }
 
-toast button, popover.background.touch-selection button, popover.background.magnifier button, .osd button { color: #BAC3CF; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(102, 109, 132, 0.35); }
+toast button, popover.background.touch-selection button, popover.background.magnifier button, .osd button { color: #BAC3CF; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(96, 96, 96, 0.35); }
 
-toast button:hover, popover.background.touch-selection button:hover, popover.background.magnifier button:hover, .osd button:hover { color: #BAC3CF; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(119, 127, 151, 0.45); }
+toast button:hover, popover.background.touch-selection button:hover, popover.background.magnifier button:hover, .osd button:hover { color: #BAC3CF; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(114, 114, 114, 0.45); }
 
-toast button:active, popover.background.touch-selection button:active, popover.background.magnifier button:active, toast button:checked, popover.background.touch-selection button:checked, popover.background.magnifier button:checked, .osd button:active, .osd button:checked { background-clip: padding-box; color: #ffffff; border-color: rgba(26, 28, 34, 0.35); background-color: #b71c1c; }
+toast button:active, popover.background.touch-selection button:active, popover.background.magnifier button:active, toast button:checked, popover.background.touch-selection button:checked, popover.background.magnifier button:checked, .osd button:active, .osd button:checked { background-clip: padding-box; color: #ffffff; border-color: rgba(9, 9, 9, 0.35); background-color: #b71c1c; }
 
-toast button:disabled, popover.background.touch-selection button:disabled, popover.background.magnifier button:disabled, .osd button:disabled { color: #5d626e; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(102, 109, 132, 0.2); }
+toast button:disabled, popover.background.touch-selection button:disabled, popover.background.magnifier button:disabled, .osd button:disabled { color: #54575a; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(96, 96, 96, 0.2); }
 
 toast button.flat, popover.background.touch-selection button.flat, popover.background.magnifier button.flat, .osd button.flat { border-color: transparent; background-color: transparent; background-image: none; box-shadow: none; text-shadow: none; -gtk-icon-shadow: none; }
 
-toast button.flat:hover, popover.background.touch-selection button.flat:hover, popover.background.magnifier button.flat:hover, .osd button.flat:hover { color: #BAC3CF; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(119, 127, 151, 0.45); }
+toast button.flat:hover, popover.background.touch-selection button.flat:hover, popover.background.magnifier button.flat:hover, .osd button.flat:hover { color: #BAC3CF; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(114, 114, 114, 0.45); }
 
-toast button.flat:disabled, popover.background.touch-selection button.flat:disabled, popover.background.magnifier button.flat:disabled, .osd button.flat:disabled { color: #5d626e; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(102, 109, 132, 0.2); background-image: none; border-color: transparent; box-shadow: none; }
+toast button.flat:disabled, popover.background.touch-selection button.flat:disabled, popover.background.magnifier button.flat:disabled, .osd button.flat:disabled { color: #54575a; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(96, 96, 96, 0.2); background-image: none; border-color: transparent; box-shadow: none; }
 
-toast button.flat:active, popover.background.touch-selection button.flat:active, popover.background.magnifier button.flat:active, toast button.flat:checked, popover.background.touch-selection button.flat:checked, popover.background.magnifier button.flat:checked, .osd button.flat:active, .osd button.flat:checked { color: #ffffff; border-color: rgba(26, 28, 34, 0.35); background-color: #b71c1c; }
+toast button.flat:active, popover.background.touch-selection button.flat:active, popover.background.magnifier button.flat:active, toast button.flat:checked, popover.background.touch-selection button.flat:checked, popover.background.magnifier button.flat:checked, .osd button.flat:active, .osd button.flat:checked { color: #ffffff; border-color: rgba(9, 9, 9, 0.35); background-color: #b71c1c; }
 
 button.suggested-action { background-clip: border-box; color: white; background-color: #b71c1c; border-color: #b71c1c; }
 
@@ -277,13 +277,13 @@ button.suggested-action:disabled:active, button.suggested-action:disabled:checke
 
 button.suggested-action:disabled:active label, button.suggested-action:disabled:active, button.suggested-action:disabled:checked label, button.suggested-action:disabled:checked { color: rgba(255, 255, 255, 0.8); }
 
-.osd button.suggested-action { color: #BAC3CF; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(102, 109, 132, 0.35); }
+.osd button.suggested-action { color: #BAC3CF; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(96, 96, 96, 0.35); }
 
-.osd button.suggested-action:hover { color: #BAC3CF; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(119, 127, 151, 0.45); }
+.osd button.suggested-action:hover { color: #BAC3CF; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(114, 114, 114, 0.45); }
 
-.osd button.suggested-action:active, .osd button.suggested-action:checked { color: #ffffff; border-color: rgba(26, 28, 34, 0.35); background-color: #b71c1c; }
+.osd button.suggested-action:active, .osd button.suggested-action:checked { color: #ffffff; border-color: rgba(9, 9, 9, 0.35); background-color: #b71c1c; }
 
-.osd button.suggested-action:disabled { color: #5d626e; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(102, 109, 132, 0.2); }
+.osd button.suggested-action:disabled { color: #54575a; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(96, 96, 96, 0.2); }
 
 button.destructive-action { background-clip: border-box; color: white; background-color: #F04A50; border-color: #F04A50; }
 
@@ -307,13 +307,13 @@ button.destructive-action:disabled:active, button.destructive-action:disabled:ch
 
 button.destructive-action:disabled:active label, button.destructive-action:disabled:active, button.destructive-action:disabled:checked label, button.destructive-action:disabled:checked { color: rgba(255, 255, 255, 0.8); }
 
-.osd button.destructive-action { color: #BAC3CF; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(102, 109, 132, 0.35); }
+.osd button.destructive-action { color: #BAC3CF; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(96, 96, 96, 0.35); }
 
-.osd button.destructive-action:hover { color: #BAC3CF; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(119, 127, 151, 0.45); }
+.osd button.destructive-action:hover { color: #BAC3CF; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(114, 114, 114, 0.45); }
 
-.osd button.destructive-action:active, .osd button.destructive-action:checked { color: #ffffff; border-color: rgba(26, 28, 34, 0.35); background-color: #b71c1c; }
+.osd button.destructive-action:active, .osd button.destructive-action:checked { color: #ffffff; border-color: rgba(9, 9, 9, 0.35); background-color: #b71c1c; }
 
-.osd button.destructive-action:disabled { color: #5d626e; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(102, 109, 132, 0.2); }
+.osd button.destructive-action:disabled { color: #54575a; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(96, 96, 96, 0.2); }
 
 stackswitcher > button > label { padding: 0 6px; margin: 0 -6px; }
 
@@ -498,11 +498,11 @@ spinbutton:not(.vertical) > text:focus + button { border-left-color: #191919; }
 
 spinbutton:not(.vertical) > text:drop(active) + button { border-left-color: #F08437; }
 
-.osd spinbutton:not(.vertical) > button:hover:not(:active), .osd spinbutton:not(.vertical) > button:hover:not(:active) + button { box-shadow: inset 1px 0 rgba(26, 28, 34, 0.35); }
+.osd spinbutton:not(.vertical) > button:hover:not(:active), .osd spinbutton:not(.vertical) > button:hover:not(:active) + button { box-shadow: inset 1px 0 rgba(9, 9, 9, 0.35); }
 
 .osd spinbutton:not(.vertical) > button:first-child:hover:not(:active), .osd spinbutton:not(.vertical) > button.up:dir(rtl):hover:not(:active), .osd spinbutton:not(.vertical) > text + button:not(:active):hover { box-shadow: none; }
 
-.osd spinbutton:not(.vertical) > text:focus + button { border-left-color: rgba(26, 28, 34, 0.35); }
+.osd spinbutton:not(.vertical) > text:focus + button { border-left-color: rgba(9, 9, 9, 0.35); }
 
 spinbutton.vertical button, spinbutton.vertical text { padding-left: 0; padding-right: 0; min-width: 0; }
 
@@ -542,7 +542,7 @@ searchbar > revealer > box, .toolbar { padding: 4px; border-spacing: 1px; backgr
 
 .osd .toolbar { background-color: transparent; }
 
-.toolbar.osd { padding: 7px; border: 1px solid rgba(0, 0, 0, 0.5); border-radius: 3px; background-color: rgba(53, 57, 69, 0.85); }
+.toolbar.osd { padding: 7px; border: 1px solid rgba(0, 0, 0, 0.5); border-radius: 3px; background-color: rgba(40, 40, 40, 0.85); }
 
 .toolbar.osd.left, .toolbar.osd.right, .toolbar.osd.top, .toolbar.osd.bottom { border-radius: 0; }
 
@@ -1272,7 +1272,7 @@ modelbutton:hover progressbar > trough, modelbutton:hover scale > trough > fill,
 
 modelbutton:hover progressbar > trough:disabled, modelbutton:hover scale > trough > fill:disabled, modelbutton:hover scale > trough:disabled, row:selected progressbar > trough:disabled, row:selected scale > trough > fill:disabled, row:selected scale > trough:disabled, infobar progressbar > trough:disabled, infobar scale > trough > fill:disabled, infobar scale > trough:disabled { background-color: rgba(0, 0, 0, 0.1); }
 
-.osd progressbar > trough, .osd scale > trough > fill, .osd scale > trough { background-color: rgba(69, 74, 89, 0.95); }
+.osd progressbar > trough, .osd scale > trough > fill, .osd scale > trough { background-color: rgba(58, 58, 58, 0.95); }
 
 progressbar > trough > progress, scale > trough > highlight { border: none; border-radius: 2.5px; background-color: #b71c1c; }
 
@@ -1530,19 +1530,19 @@ columnview row:not(:selected) cell editablelabel.editing text selection { color:
 .rich-list > row > box { border-spacing: 12px; }
 
 /********************* App Notifications * */
-.app-notification { padding: 10px; color: #BAC3CF; background-color: rgba(53, 57, 69, 0.95); background-clip: border-box; border-radius: 0 0 2px 2px; border-width: 0 1px 1px 1px; border-style: solid; border-color: rgba(31, 33, 40, 0.95); }
+.app-notification { padding: 10px; color: #BAC3CF; background-color: rgba(40, 40, 40, 0.95); background-clip: border-box; border-radius: 0 0 2px 2px; border-width: 0 1px 1px 1px; border-style: solid; border-color: rgba(15, 15, 15, 0.95); }
 
 .app-notification border { border: none; }
 
-.app-notification button { color: #BAC3CF; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(102, 109, 132, 0.35); }
+.app-notification button { color: #BAC3CF; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(96, 96, 96, 0.35); }
 
 .app-notification button.flat { border-color: rgba(183, 28, 28, 0); }
 
-.app-notification button:hover { color: #BAC3CF; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(119, 127, 151, 0.45); }
+.app-notification button:hover { color: #BAC3CF; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(114, 114, 114, 0.45); }
 
-.app-notification button:active, .app-notification button:checked { color: #ffffff; border-color: rgba(26, 28, 34, 0.35); background-color: #b71c1c; background-clip: padding-box; }
+.app-notification button:active, .app-notification button:checked { color: #ffffff; border-color: rgba(9, 9, 9, 0.35); background-color: #b71c1c; background-clip: padding-box; }
 
-.app-notification button:disabled { color: #5d626e; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(102, 109, 132, 0.2); }
+.app-notification button:disabled { color: #54575a; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(96, 96, 96, 0.2); }
 
 /************* Expanders * */
 expander { min-width: 16px; min-height: 16px; -gtk-icon-source: -gtk-icontheme("pan-end-symbolic"); }
@@ -1754,7 +1754,7 @@ video image.osd { min-width: 64px; min-height: 64px; border-radius: 32px; }
 /************ Tooltips * */
 tooltip { padding: 4px; border-radius: 2px; }
 
-tooltip.background { background-color: rgba(75, 81, 98, 0.95); background-clip: padding-box; }
+tooltip.background { background-color: rgba(66, 66, 66, 0.95); background-clip: padding-box; }
 
 tooltip.background, tooltip { color: #BAC3CF; }
 
@@ -1987,14 +1987,14 @@ menubutton arrow.right { -gtk-icon-source: -gtk-icontheme("pan-end-symbolic"); }
 @define-color placeholder_text_color #A8A8A8;
 @define-color link_color #e55454;
 @define-color content_view_bg #3c3836;
-@define-color text_view_bg #353945;
+@define-color text_view_bg #282828;
 @define-color wm_title alpha(#fef3c4, 0.8);
 @define-color wm_unfocused_title alpha(#fef3c4, 0.5);
 @define-color wm_bg #1d2021;
 @define-color wm_bg_unfocused #212425;
 @define-color wm_highlight #242829;
 @define-color wm_shadow alpha(black, 0.35);
-@define-color wm_border #21242b;
+@define-color wm_border #111111;
 @define-color wm_button_close_bg #cc575d;
 @define-color wm_button_close_hover_bg #d7787d;
 @define-color wm_button_close_active_bg #be3841;
@@ -2116,13 +2116,13 @@ button splitbutton.suggested-action > button:disabled:active, button splitbutton
 
 button splitbutton.suggested-action > button:disabled:active label, button splitbutton.destructive-action > button:disabled:active label, button splitbutton.opaque > button:disabled:active label, button menubutton.opaque > button:disabled:active label, button splitbutton.suggested-action > button:disabled:active, button splitbutton.suggested-action > menubutton > button:disabled:active, button splitbutton.destructive-action > button:disabled:active, button splitbutton.destructive-action > menubutton > button:disabled:active, button splitbutton.opaque > button:disabled:active, button splitbutton.opaque > menubutton > button:disabled:active, button menubutton.opaque > button:disabled:active, button splitbutton.suggested-action > button:disabled:checked label, button splitbutton.destructive-action > button:disabled:checked label, button splitbutton.opaque > button:disabled:checked label, button menubutton.opaque > button:disabled:checked label, button splitbutton.suggested-action > button:disabled:checked, button splitbutton.suggested-action > menubutton > button:disabled:checked, button splitbutton.destructive-action > button:disabled:checked, button splitbutton.destructive-action > menubutton > button:disabled:checked, button splitbutton.opaque > button:disabled:checked, button splitbutton.opaque > menubutton > button:disabled:checked, button menubutton.opaque > button:disabled:checked, button.opaque:disabled:active label, button.opaque:disabled:active, button.opaque:disabled:checked label, button.opaque:disabled:checked { color: rgba(255, 255, 255, 0.8); }
 
-.osd button splitbutton.suggested-action > button, .osd button splitbutton.suggested-action > menubutton > button, .osd button splitbutton.destructive-action > button, .osd button splitbutton.destructive-action > menubutton > button, .osd button splitbutton.opaque > button, .osd button splitbutton.opaque > menubutton > button, .osd button menubutton.opaque > button, .osd button.opaque { color: #BAC3CF; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(102, 109, 132, 0.35); }
+.osd button splitbutton.suggested-action > button, .osd button splitbutton.suggested-action > menubutton > button, .osd button splitbutton.destructive-action > button, .osd button splitbutton.destructive-action > menubutton > button, .osd button splitbutton.opaque > button, .osd button splitbutton.opaque > menubutton > button, .osd button menubutton.opaque > button, .osd button.opaque { color: #BAC3CF; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(96, 96, 96, 0.35); }
 
-.osd button splitbutton.suggested-action > button:hover, .osd button splitbutton.suggested-action > menubutton > button:hover, .osd button splitbutton.destructive-action > button:hover, .osd button splitbutton.destructive-action > menubutton > button:hover, .osd button splitbutton.opaque > button:hover, .osd button splitbutton.opaque > menubutton > button:hover, .osd button menubutton.opaque > button:hover, .osd button.opaque:hover { color: #BAC3CF; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(119, 127, 151, 0.45); }
+.osd button splitbutton.suggested-action > button:hover, .osd button splitbutton.suggested-action > menubutton > button:hover, .osd button splitbutton.destructive-action > button:hover, .osd button splitbutton.destructive-action > menubutton > button:hover, .osd button splitbutton.opaque > button:hover, .osd button splitbutton.opaque > menubutton > button:hover, .osd button menubutton.opaque > button:hover, .osd button.opaque:hover { color: #BAC3CF; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(114, 114, 114, 0.45); }
 
-.osd button splitbutton.suggested-action > button:active, .osd button splitbutton.suggested-action > menubutton > button:active, .osd button splitbutton.destructive-action > button:active, .osd button splitbutton.destructive-action > menubutton > button:active, .osd button splitbutton.opaque > button:active, .osd button splitbutton.opaque > menubutton > button:active, .osd button menubutton.opaque > button:active, .osd button splitbutton.suggested-action > button:checked, .osd button splitbutton.suggested-action > menubutton > button:checked, .osd button splitbutton.destructive-action > button:checked, .osd button splitbutton.destructive-action > menubutton > button:checked, .osd button splitbutton.opaque > button:checked, .osd button splitbutton.opaque > menubutton > button:checked, .osd button menubutton.opaque > button:checked, .osd button.opaque:active, .osd button.opaque:checked { color: #ffffff; border-color: rgba(26, 28, 34, 0.35); background-color: #b71c1c; }
+.osd button splitbutton.suggested-action > button:active, .osd button splitbutton.suggested-action > menubutton > button:active, .osd button splitbutton.destructive-action > button:active, .osd button splitbutton.destructive-action > menubutton > button:active, .osd button splitbutton.opaque > button:active, .osd button splitbutton.opaque > menubutton > button:active, .osd button menubutton.opaque > button:active, .osd button splitbutton.suggested-action > button:checked, .osd button splitbutton.suggested-action > menubutton > button:checked, .osd button splitbutton.destructive-action > button:checked, .osd button splitbutton.destructive-action > menubutton > button:checked, .osd button splitbutton.opaque > button:checked, .osd button splitbutton.opaque > menubutton > button:checked, .osd button menubutton.opaque > button:checked, .osd button.opaque:active, .osd button.opaque:checked { color: #ffffff; border-color: rgba(9, 9, 9, 0.35); background-color: #b71c1c; }
 
-.osd button splitbutton.suggested-action > button:disabled, .osd button splitbutton.suggested-action > menubutton > button:disabled, .osd button splitbutton.destructive-action > button:disabled, .osd button splitbutton.destructive-action > menubutton > button:disabled, .osd button splitbutton.opaque > button:disabled, .osd button splitbutton.opaque > menubutton > button:disabled, .osd button menubutton.opaque > button:disabled, .osd button.opaque:disabled { color: #5d626e; border-color: rgba(26, 28, 34, 0.35); background-color: rgba(102, 109, 132, 0.2); }
+.osd button splitbutton.suggested-action > button:disabled, .osd button splitbutton.suggested-action > menubutton > button:disabled, .osd button splitbutton.destructive-action > button:disabled, .osd button splitbutton.destructive-action > menubutton > button:disabled, .osd button splitbutton.opaque > button:disabled, .osd button splitbutton.opaque > menubutton > button:disabled, .osd button menubutton.opaque > button:disabled, .osd button.opaque:disabled { color: #54575a; border-color: rgba(9, 9, 9, 0.35); background-color: rgba(96, 96, 96, 0.2); }
 
 menubutton.pill > button, button.pill { border-radius: 9999px; }
 
