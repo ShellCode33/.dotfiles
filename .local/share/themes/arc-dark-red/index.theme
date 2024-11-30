@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=arc-dark-red
+Comment=A flat theme with transparent elements
+Encoding=UTF-8
+
+[X-GNOME-Metatheme]
+GtkTheme=arc-dark-red
+MetacityTheme=arc-dark-red
+IconTheme=Adwaita
+CursorTheme=DMZ-Black
+ButtonLayout=menu:minimize,maximize,close
