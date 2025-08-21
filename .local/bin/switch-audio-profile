@@ -10,7 +10,7 @@ from subprocess import check_output, CalledProcessError
 PACTL = "/usr/bin/pactl"
 
 
-def get_profiles() -> dict[str, list[str]]:
+def get_devices_profiles() -> dict[str, list[str]]:
     current_card = None
     profiles_per_card = {}
 
@@ -53,13 +53,20 @@ def set_device_profile(alsa_device: str, profile: str) -> None:
 
 
 def switch_profile(profile: str) -> None:
-    profiles_per_card = get_profiles()
+    profiles_per_device = get_devices_profiles()
 
-    if len(profiles_per_card) > 1:
-        error = "Not supporting more than one ALSA device"
+    # Filter out devices that don't have the profile we want.
+    profiles_per_device = {
+        device: profiles
+        for device, profiles in profiles_per_device.items()
+        if profile in profiles
+    }
+
+    if len(profiles_per_device) > 1:
+        error = "Not supporting more than one ALSA device yet"
         raise NotImplementedError(error)
 
-    alsa_device, supported_profiles = next(iter(profiles_per_card.items()))
+    alsa_device, supported_profiles = next(iter(profiles_per_device.items()))
 
     if profile not in supported_profiles:
         print(f"Profile {profile} not found, supported profiles are:")
