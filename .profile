@@ -12,12 +12,12 @@ export LANG='en_US.UTF-8'
 
 # Desktop related variables
 export XDG_SESSION_TYPE=wayland
-export XDG_SESSION_DESKTOP=sway
-export XDG_CURRENT_DESKTOP=sway
+export XDG_SESSION_DESKTOP=Hyprland
+export XDG_CURRENT_DESKTOP=Hyprland
 
 # Home directories
 set -a
-. .config/user-dirs.dirs
+. "$HOME/.config/user-dirs.dirs"
 set +a
 
 # Set LS_COLORS environment variable
@@ -72,10 +72,12 @@ case "$(tty)" in
   dbus-update-activation-environment --systemd --all
 
   "$XDG_BIN_HOME"/load-gtk-conf # See comments inside the script for why this is needed
-  exec "$XDG_CURRENT_DESKTOP" >"$XDG_STATE_HOME/$XDG_CURRENT_DESKTOP.log" 2>&1
+  mkdir -p "$XDG_STATE_HOME"
+  exec /usr/bin/start-hyprland >"$XDG_STATE_HOME/hyprland.log" 2>&1
   ;;
 
 "/dev/tty"*)
+  # Automatically logout after 10 minutes of inactivity for security purposes.
   export TMOUT=600
   exec "$SHELL"
   ;;

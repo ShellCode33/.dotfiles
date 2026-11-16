@@ -37,8 +37,9 @@ link ".profile"
 link ".config/fontconfig"
 link ".config/gtk-3.0"
 link ".config/dunst"
-link ".config/wezterm"
-link ".config/sway"
+link ".config/kitty"
+link ".config/hypr"
+link ".config/waybar"
 link ".config/llama/server/environment.conf"
 link ".config/zsh"
 link ".config/gdb"
@@ -58,16 +59,18 @@ link ".config/user-dirs.dirs"
 
 link ".mozilla/firefox/user-overrides.js"
 
+link ".local/share/themes"
 link ".local/share/applications"
 link ".local/share/wallpaper.jpg"
 link ".local/bin" # Maybe I should link individual executables instead of the whole folder
 
 # Create home directories
 cut -s -d'"' -f2 "$HOME/.config/user-dirs.dirs" | sed "s|\$HOME|$HOME|g" | xargs -L 1 mkdir -p
-mkdir "$HOME/dev"
+mkdir -p "$HOME/dev"
 
 # Source XDG variables
 source "$HOME/.config/user-dirs.dirs"
+mkdir -p "$XDG_CACHE_HOME" "$XDG_STATE_HOME"
 
 # Mark download folder nodatacow
 chattr +C "$XDG_DOWNLOAD_DIR"

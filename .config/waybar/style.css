@@ -1,0 +1,201 @@
+/*
+ * Gruvbox colors:
+ * https://github.com/morhetz/gruvbox
+ *
+ */
+@define-color bg0 rgb (0x28, 0x28, 0x28);
+@define-color bg1 rgb (0x3c, 0x38, 0x36);
+@define-color bg2 rgb (0x50, 0x49, 0x45);
+
+@define-color bg0-hover rgb (0x50, 0x49, 0x45);
+@define-color bg1-hover rgb (0x50, 0x49, 0x45);
+
+@define-color fg0 rgb (0xfb, 0xf1, 0xc7);
+@define-color fg1 rgb (0xeb, 0xdb, 0xb2);
+
+@define-color accent rgb (0xb7, 0x1c, 0x1c);
+@define-color accent-hover rgb (0x9d, 0x00, 0x06);
+
+@keyframes blink {
+  to {
+    background-color: @bg0;
+  }
+}
+
+* {
+  font-family: monospace;
+  font-size: 13px;
+}
+
+#waybar {
+  background-color: @bg0;
+  color: @fg0;
+}
+
+/* If workspaces is the leftmost module, omit left margin */
+.modules-left > widget:first-child > #workspaces {
+  margin-left: 0;
+}
+
+/* If workspaces is the rightmost module, omit right margin */
+.modules-right > widget:last-child > #workspaces {
+  margin-right: 0;
+}
+
+#workspaces button {
+  padding: 0 0px;
+  background-color: transparent;
+  color: @fg0;
+}
+
+#workspaces button:hover {
+  background-color: @accent-hover;
+}
+
+#workspaces button.active {
+  background-color: @accent;
+}
+
+#workspaces button.urgent {
+  background-color: @accent;
+  animation-name: blink;
+  animation-duration: 0.5s;
+  animation-timing-function: steps(12);
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+#clock,
+#language,
+#battery,
+#mpris,
+#cpu,
+#memory,
+#disk,
+#temperature,
+#backlight,
+#network,
+#pulseaudio,
+#wireplumber,
+#mpd,
+#privacy,
+#systemd-failed-units,
+#custom-backlight,
+#custom-power {
+  padding: 0 10px;
+  color: @fg0;
+}
+
+#privacy {
+  background-color: @accent;
+  animation-name: blink;
+  animation-duration: 0.8s;
+  animation-timing-function: steps(12);
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+#systemd-failed-units {
+  background-color: @accent;
+}
+
+#mpris {
+  background-color: @bg1;
+}
+
+#mpris:hover {
+  background-color: @bg1-hover;
+}
+
+#pulseaudio {
+  background-color: @bg0;
+}
+
+#pulseaudio:hover {
+  background-color: @bg0-hover;
+}
+
+#custom-backlight {
+  background-color: @accent;
+}
+
+#custom-backlight:hover {
+  background-color: @accent-hover;
+}
+
+#network {
+  background-color: @bg1;
+  min-width: 200px;
+}
+
+#network.disconnected {
+  background-color: @bg1;
+  min-width: 200px;
+}
+
+#memory {
+  background-color: @bg0;
+}
+
+#memory.warning {
+  background-color: @bg0;
+  animation-name: blink;
+  animation-duration: 0.5s;
+  animation-timing-function: steps(12);
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+#cpu {
+  background-color: @accent;
+}
+
+#temperature {
+  background-color: @accent;
+}
+
+#temperature.critical {
+  background-color: @accent;
+  animation-name: blink;
+  animation-duration: 0.5s;
+  animation-timing-function: steps(12);
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+#language {
+  background-color: @bg1;
+}
+
+#language:hover {
+  background-color: @bg1-hover;
+}
+
+#clock {
+  background-color: @bg0;
+}
+
+#clock:hover {
+  background-color: @bg0-hover;
+}
+
+#battery {
+  background-color: @accent;
+}
+
+#battery.critical:not(.charging) {
+  background-color: @accent;
+  animation-name: blink;
+  animation-duration: 0.5s;
+  animation-timing-function: steps(12);
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+#custom-power {
+  background-color: @accent;
+}
+
+#custom-power:hover {
+  background-color: @accent-hover;
+}

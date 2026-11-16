@@ -1,0 +1,159 @@
+// -*- mode: jsonc -*-
+{
+  "height": 30, // Waybar height (to be removed for auto height)
+  "spacing": 0, // Gaps between modules
+  "fixed-center": false,
+  "reload_style_on_change": true,
+  // Choose the order of the modules
+  "modules-left": ["hyprland/workspaces"],
+  "modules-center": ["hyprland/window"],
+  "modules-right": [
+    "privacy",
+    "mpris",
+    "systemd-failed-units",
+    "pulseaudio",
+    "custom/backlight",
+    "network",
+    "memory",
+    "cpu",
+    "temperature",
+    "hyprland/language",
+    "clock",
+    "battery",
+    "battery#bat2",
+    "custom/power",
+  ],
+  // Modules configuration
+  "hyprland/workspaces": {
+    "disable-scroll": true,
+    "all-outputs": false,
+    "warp-on-scroll": false,
+    "format": "{name}",
+  },
+  "hyprland/window": {
+    "rewrite": {
+      "(.*) — Mozilla Firefox": "$1",
+    },
+    "icon": true,
+    "separate-outputs": true,
+  },
+  "hyprland/language": {
+    "format": "{}  ",
+    "format-en": "US",
+    "on-click": "hyprctl switchxkblayout main next",
+  },
+  "clock": {
+    "format": "{:%Y-%m-%d %H:%M}",
+    "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+  },
+  "cpu": {
+    "format": "{usage}% ",
+    "tooltip": true,
+  },
+  "memory": {
+    "format": "{}% ",
+    "states": {
+      "warning": 90,
+    },
+  },
+  "temperature": {
+    "hwmon-path": "/sys/devices/pci0000:00/0000:00:18.3/hwmon/hwmon3/temp1_input",
+    "critical-threshold": 90,
+    "format": "{temperatureC}°C",
+    "format-icons": ["", "", ""],
+  },
+  "custom/backlight": {
+    "signal": 1,
+    "interval": 10,
+    "exec": "backlightctl --json | jq -c '{text: (.brightness_percent | tostring), alt: .mode}'",
+    "return-type": "json",
+    "format": "{text}%  ({alt})",
+    "tooltip-format": "Scroll up or down to adjust brightness; click for auto",
+    "exec-on-event": true,
+    "on-click": "backlightctl --auto",
+    "on-scroll-down": "backlightctl -b -5%",
+    "on-scroll-up": "backlightctl -b +5%"
+  },
+  "battery": {
+    "states": {
+      "critical": 10,
+    },
+    "format": "{capacity}% {icon}",
+    "format-full": "{capacity}% {icon}",
+    "format-charging": "{capacity}% ",
+    "format-plugged": "{capacity}% ",
+    "format-alt": "{time} {icon}",
+    // "format-good": "", // An empty format will hide the module
+    // "format-full": "",
+    "format-icons": ["", "", "", "", ""],
+  },
+  "battery#bat2": {
+    "bat": "BAT2",
+  },
+  "network": {
+    "interval": 5,
+    "format-wifi": "{essid} ({signalStrength}%) : {bandwidthDownBytes}   {bandwidthUpBytes}  ",
+    "format-ethernet": "{bandwidthDownBytes}   {bandwidthUpBytes}  ",
+    "tooltip-format": "Interface: {ifname} IP: {ipaddr} Gateway: {gwaddr}",
+    "format-linked": "{ifname} (No IP) ",
+    "format-disconnected": "Disconnected ⚠",
+  },
+  "pulseaudio": {
+    "format": "{volume}% {icon} {format_source}",
+    "format-bluetooth": "{volume}% {icon} {format_source}",
+    "format-bluetooth-muted": " {icon} {format_source}",
+    "format-muted": " {format_source}",
+    "format-source": "{volume}% ",
+    "format-source-muted": "",
+    "format-icons": {
+      "headphone": "",
+      "hands-free": "",
+      "headset": "",
+      "phone": "",
+      "portable": "",
+      "car": "",
+      "default": ["", "", ""],
+    },
+    "on-click": "pavucontrol",
+  },
+  "mpris": {
+    "format": "{status_icon} {player}",
+    "format-paused": "{status_icon} {player}",
+    "status-icons": {
+      "paused": "",
+      "playing": "",
+    },
+  },
+  "privacy": {
+    "icon-spacing": 4,
+    "icon-size": 18,
+    "transition-duration": 250,
+    "modules": [
+      {
+        "type": "screenshare",
+        "tooltip": true,
+        "tooltip-icon-size": 24,
+      },
+      {
+        "type": "audio-in",
+        "tooltip": true,
+        "tooltip-icon-size": 24,
+      },
+    ],
+  },
+  "systemd-failed-units": {
+    "format": "Systemd service failed (system:{nr_failed_system} user:{nr_failed_user})",
+  },
+  "custom/power": {
+    "format": "",
+    "tooltip": false,
+    "menu": "on-click",
+    "menu-file": "$HOME/.config/waybar/power_menu.xml",
+    "menu-actions": {
+      "shutdown": "hyprshutdown -t 'Shutting down...' --post-cmd 'shutdown now'",
+      "reboot": "hyprshutdown -t 'Restarting...' --post-cmd 'reboot'",
+      "suspend": "systemctl suspend",
+      "lock": "/usr/local/bin/lock --force",
+    },
+  },
+}
