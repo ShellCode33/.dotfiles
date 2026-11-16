@@ -54,6 +54,14 @@ export NPM_CONFIG_USERCONFIG=$XDG_CONFIG_HOME/npm/config
 export NPM_CONFIG_CACHE=$XDG_CACHE_HOME/npm
 export NPM_CONFIG_TMP=$XDG_RUNTIME_DIR/npm
 
+# Only for some AMD GPUs, including RX 6600
+if lspci | grep -q 'RX 6600'; then
+  export HSA_OVERRIDE_GFX_VERSION=10.3.0
+fi
+
+# llamacpp configuration
+export LLAMA_BASE_URL="http://localhost:11434/v1"
+
 case "$(tty)" in
 
 "/dev/tty1")
