@@ -19,6 +19,7 @@
     "temperature",
     "hyprland/language",
     "clock",
+    "custom/calendar",
     "battery",
     "battery#bat2",
     "custom/power",
@@ -45,6 +46,12 @@
   "clock": {
     "format": "{:%Y-%m-%d %H:%M}",
     "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+  },
+  "custom/calendar": {
+    "exec": "agenda waybar",
+    "return-type": "json",
+    "interval": 300,
+    "on-click": "kitty --class calendar --title Calendar agenda open",
   },
   "cpu": {
     "format": "{usage}% ",

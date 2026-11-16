@@ -178,3 +178,32 @@ done
 unset requirements
 unset requirement
 unset loc
+
+# Fetch the startup agenda without delaying the first prompt. The descriptor
+# handler runs only while ZLE is reading input, preserving commands in progress.
+_agenda_ready() {
+    local chunk result
+    sysread -i "$1" -s 8192 -t 0 chunk
+    result=$?
+    if (( result == 0 )); then
+        _agenda_output+=$chunk
+        return
+    fi
+    (( result == 4 )) && return
+
+    zle -F "$1"
+    exec {_agenda_fd}<&-
+    if [[ -n $_agenda_output ]]; then
+        zle -I
+        print -r -- "${_agenda_output%$'\n'}"
+        zle -R
+    fi
+    unset _agenda_fd _agenda_output
+}
+
+if [[ -o interactive && -t 1 && -z ${ZSH_EXECUTION_STRING-} && -z ${_agenda_fd-} ]] && (( $+commands[agenda] )); then
+    zmodload zsh/system
+    typeset -g _agenda_output=''
+    exec {_agenda_fd}< <(agenda summary 2>&1)
+    zle -F "$_agenda_fd" _agenda_ready
+fi

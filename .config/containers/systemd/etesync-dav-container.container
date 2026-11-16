@@ -8,6 +8,8 @@ UserNS=keep-id
 Network=pasta:-T,8080
 PublishPort=127.0.0.1:37358:37358
 Volume=%h/.local/share/etesync-dav:/data
+Volume=%h/.config/containers/systemd/etesync-dav/agenda:/usr/local/bin/agenda:ro
+Volume=/etc/localtime:/etc/localtime:ro
 ReadOnly=true
 Tmpfs=/tmp:rw,nodev,nosuid,size=64m,mode=1777
 NoNewPrivileges=true

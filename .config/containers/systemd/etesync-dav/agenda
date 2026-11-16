@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+# pyright: strict
+"""Print a read-only agenda using the calendar libraries in EteSync DAV."""
+
+import argparse
+import base64
+import calendar
+import html
+import json
+import signal
+import sys
+import xml.etree.ElementTree as ET
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta
+from importlib import import_module
+from pathlib import Path
+from types import FrameType
+from typing import Protocol, cast
+from urllib.parse import quote, urljoin, urlsplit
+from urllib.request import ProxyHandler, Request, build_opener
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+
+BASE_URL = "http://localhost:37358/"
+DAV = "{DAV:}"
+CALDAV = "{urn:ietf:params:xml:ns:caldav}"
+
+
+# vobject is already installed in the container and has no typing information.
+class Property(Protocol):
+    value: object
+
+
+class RuleSet(Protocol):
+    def between(self, after: datetime, before: datetime, inc: bool = False) -> list[datetime]: ...
+
+
+class Component(Protocol):
+    contents: Mapping[str, Sequence[Property]]
+
+    def getrruleset(self, addRDate: bool = False) -> RuleSet | None: ...
+
+
+class CalendarDocument(Protocol):
+    contents: Mapping[str, Sequence[Component]]
+
+
+@dataclass(frozen=True)
+class Event:
+    start: datetime
+    end: datetime
+    all_day: bool
+    title: str
+    location: str
+    calendar: str
+
+
+def clean(value: object) -> str:
+    return " ".join("".join(character for character in str(value) if character.isprintable() or character.isspace()).split())
+
+
+def value(event: Component, key: str, default: object = "") -> object:
+    properties = event.contents.get(key, ())
+    return properties[0].value if properties else default
+
+
+def local_datetime(value: object, timezone: ZoneInfo) -> datetime:
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=timezone) if value.tzinfo is None else value.astimezone(timezone)
+    if isinstance(value, date):
+        return datetime.combine(value, time.min, timezone)
+    raise ValueError("Event has no valid date")
+
+
+def next_year(today: date) -> date:
+    year = today.year + 1
+    return today.replace(year=year, day=min(today.day, calendar.monthrange(year, today.month)[1]))
+
+
+def next_month(today: date) -> date:
+    year, month = divmod(today.year * 12 + today.month, 12)
+    month += 1
+    return today.replace(year=year, month=month, day=min(today.day, calendar.monthrange(year, month)[1]))
+
+
+def request(url: str, method: str, body: str, authorization: str) -> ET.Element:
+    target = urlsplit(url)
+    if target.scheme != "http" or target.hostname != "localhost" or target.port != 37358:
+        raise ValueError("Unexpected CalDAV collection URL")
+    message = Request(url, data=body.encode(), method=method, headers={
+        "Authorization": authorization, "Content-Type": "application/xml; charset=utf-8", "Depth": "1",
+    })
+    # Loopback traffic must not depend on the host's forwarding proxy.
+    with build_opener(ProxyHandler({})).open(message, timeout=5) as response:
+        if response.status != 207:
+            raise ValueError(f"Unexpected CalDAV status: {response.status}")
+        return ET.fromstring(response.read())
+
+
+def calendar_properties(response: ET.Element) -> list[ET.Element]:
+    properties: list[ET.Element] = []
+    for item in response.findall(DAV + "response"):
+        for propstat in item.findall(DAV + "propstat"):
+            status = propstat.findtext(DAV + "status", "")
+            if " 200 " not in status:
+                raise ValueError("CalDAV could not return the requested calendar data")
+            prop = propstat.find(DAV + "prop")
+            if prop is not None:
+                properties.append(prop)
+    return properties
+
+
+def expand_events(document: CalendarDocument, now: datetime, until: datetime,
+                  timezone: ZoneInfo, name: str) -> list[Event]:
+    components = document.contents.get("vevent", ())
+    overrides = {
+        (clean(value(component, "uid")), local_datetime(value(component, "recurrence-id"), timezone))
+        for component in components if component.contents.get("recurrence-id")
+    }
+    events: list[Event] = []
+    for component in components:
+        if clean(value(component, "status")).upper() == "CANCELLED":
+            continue
+        begins = value(component, "dtstart")
+        # vobject returns localized pytz objects. dateutil recurrence needs a
+        # timezone that adjusts its offset across DST, such as ZoneInfo.
+        if isinstance(begins, datetime) and begins.tzinfo is not None:
+            zone: object = getattr(begins.tzinfo, "zone", None)
+            if isinstance(zone, str):
+                try:
+                    begins = begins.replace(tzinfo=ZoneInfo(zone))
+                    component.contents["dtstart"][0].value = begins
+                except ZoneInfoNotFoundError:
+                    pass
+        start = local_datetime(begins, timezone)
+        all_day = isinstance(begins, date) and not isinstance(begins, datetime)
+        duration = value(component, "duration", timedelta(days=1) if all_day else timedelta())
+        default_end = start + duration if isinstance(duration, timedelta) else start
+        end = local_datetime(value(component, "dtend", default_end), timezone)
+        duration = end - start
+        rules = component.getrruleset(addRDate=True)
+        if rules is None:
+            starts = [start]
+        else:
+            floating = not isinstance(begins, datetime) or begins.tzinfo is None
+            after, before = now - duration, until
+            if floating:
+                after, before = after.replace(tzinfo=None), before.replace(tzinfo=None)
+            starts = [local_datetime(occurrence, timezone) for occurrence in rules.between(after, before, inc=True)]
+        for start in starts:
+            if not component.contents.get("recurrence-id") and (clean(value(component, "uid")), start) in overrides:
+                continue
+            end = start + duration
+            if start >= until or (end <= now and start < now):
+                continue
+            events.append(Event(start, end, all_day, clean(value(component, "summary", "Untitled event")),
+                                clean(value(component, "location")), name))
+    return events
+
+
+def load_events(now: datetime, until: datetime, timezone: ZoneInfo) -> list[Event]:
+    read_calendar = cast(Callable[[str], CalendarDocument], import_module("vobject").readOne)
+    events: list[Event] = []
+    credentials = [line.partition(":") for line in Path("/data/htpaswd").read_text().splitlines() if line.strip()]
+    if not credentials or any(not name or not separator or not password for name, separator, password in credentials):
+        raise ValueError("EteSync DAV credentials are missing or invalid")
+    start_text = now.astimezone(ZoneInfo("UTC")).strftime("%Y%m%dT%H%M%SZ")
+    end_text = until.astimezone(ZoneInfo("UTC")).strftime("%Y%m%dT%H%M%SZ")
+    query = (
+        '<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'
+        '<d:prop><c:calendar-data/></d:prop>'
+        '<c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT">'
+        f'<c:time-range start="{start_text}" end="{end_text}"/>'
+        '</c:comp-filter></c:comp-filter></c:filter></c:calendar-query>'
+    )
+    for username, _, password in credentials:
+        authorization = "Basic " + base64.b64encode(f"{username}:{password}".encode()).decode()
+        listing = request(BASE_URL + quote(username, safe="") + "/", "PROPFIND",
+                          '<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/>'
+                          '<d:displayname/></d:prop></d:propfind>', authorization)
+        for item in listing.findall(DAV + "response"):
+            # A collection can also be an address book; only request calendars.
+            prop = item.find(DAV + "propstat/" + DAV + "prop")
+            if prop is None or prop.find(".//" + CALDAV + "calendar") is None:
+                continue
+            url = urljoin(BASE_URL, item.findtext(DAV + "href", ""))
+            name = clean(prop.findtext(DAV + "displayname", "Calendar"))
+            response = request(url, "REPORT", query, authorization)
+            for properties in calendar_properties(response):
+                for data in properties.findall(CALDAV + "calendar-data"):
+                    events.extend(expand_events(read_calendar(data.text or ""), now, until, timezone, name))
+    return sorted(events, key=lambda event: (event.start, event.title, event.calendar))
+
+
+def event_text(event: Event) -> str:
+    if event.all_day:
+        last_day = (event.end - timedelta(days=1)).date()
+        span = "All day" if last_day <= event.start.date() else f"All day through {last_day:%Y-%m-%d}"
+    elif event.start.date() == event.end.date():
+        span = f"{event.start:%H:%M}–{event.end:%H:%M}"
+    else:
+        span = f"{event.start:%m-%d %H:%M}–{event.end:%m-%d %H:%M}"
+    location = f" @ {event.location}" if event.location else ""
+    return f"  {span}  {event.title}{location} [{event.calendar}]"
+
+
+def format_events(events: list[Event], heading: str, limit: int | None = None) -> str:
+    lines = [heading]
+    previous: date | None = None
+    for event in events if limit is None else events[:limit]:
+        if event.start.date() != previous:
+            lines.append(f"\n{event.start:%a %Y-%m-%d}")
+            previous = event.start.date()
+        lines.append(event_text(event))
+    if not events:
+        lines.append("No upcoming events.")
+    if limit is not None and len(events) > limit:
+        lines.append(f"\n… {len(events) - limit} more; run 'agenda open' for the next year.")
+    return "\n".join(lines)
+
+
+def timed_out(_signal: int, _frame: FrameType | None) -> None:
+    raise TimeoutError("Calendar query took longer than 15 seconds")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    _ = parser.add_argument("mode", nargs="?", choices=("summary", "year", "waybar"), default="summary")
+    args = parser.parse_args()
+    mode = cast(str, args.mode)
+    try:
+        with Path("/etc/localtime").open("rb") as stream:
+            timezone = ZoneInfo.from_file(stream)
+        now = datetime.now(timezone)
+        if mode == "summary":
+            day = now.date() + timedelta(days=7)
+        elif mode == "waybar":
+            day = next_month(now.date())
+        else:
+            day = next_year(now.date())
+        until = datetime.combine(day, time.min, timezone)
+        _ = signal.signal(signal.SIGALRM, timed_out)
+        _ = signal.alarm(15)
+        events = load_events(now, until, timezone)
+        _ = signal.alarm(0)
+        if mode == "waybar":
+            output = {
+                "text": f" {len(events)}",
+                "tooltip": html.escape(format_events(events, f"Next month · through {until:%Y-%m-%d} (exclusive)")),
+                "class": "calendar",
+            }
+            print(json.dumps(output, ensure_ascii=False))
+        else:
+            heading = "[agenda] Next 7 days" if mode == "summary" else f"[agenda] Upcoming events · through {until:%Y-%m-%d} (exclusive)"
+            print(format_events(events, heading, 10 if mode == "summary" else None))
+        return 0
+    except (OSError, ValueError, ET.ParseError) as error:
+        print(f"[agenda] [ERROR] Calendar unavailable ({type(error).__name__}).", file=sys.stderr)
+        return 1
+    finally:
+        _ = signal.alarm(0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

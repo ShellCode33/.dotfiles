@@ -66,6 +66,7 @@
 }
 
 #clock,
+#custom-calendar,
 #language,
 #battery,
 #mpris,
@@ -198,4 +199,12 @@
 
 #custom-power:hover {
   background-color: @accent-hover;
+}
+
+#custom-calendar:hover {
+  background-color: @bg0-hover;
+}
+
+#custom-calendar.unavailable {
+  color: @accent;
 }
