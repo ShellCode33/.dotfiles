@@ -1,91 +1,82 @@
 #!/usr/bin/env python3
-
+"""Select a connected audio profile without assuming a single ALSA card."""
 from __future__ import annotations
 
-import sys
-
+import argparse
+import json
 import subprocess
-from subprocess import check_output, CalledProcessError
+import sys
 
 PACTL = "/usr/bin/pactl"
 
 
-def get_devices_profiles() -> dict[str, list[str]]:
-    current_card = None
-    profiles_per_card = {}
+def select_profile(cards, requested, card_name=None):
+    candidates = []
+    for card in cards:
+        name = card["name"]
+        if not name.startswith("alsa_card.") or (card_name and name != card_name):
+            continue
+        for profile, info in card.get("profiles", {}).items():
+            output = profile.split("+", 1)[0]
+            target = "output:" + requested
+            # HDMI sockets can use hdmi-stereo-extra1, extra2, etc.
+            if output != target and not (
+                requested == "hdmi-stereo" and output.startswith(target + "-extra")
+            ):
+                continue
+            if info.get("available") in (False, "no", "not available"):
+                continue
+            card_ports = card.get("ports") or []
+            if isinstance(card_ports, dict):
+                card_ports = card_ports.values()
+            ports = [port for port in card_ports
+                     if profile in port.get("profiles", [])
+                     and port.get("direction") in ("output", 1)]
+            available = [port.get("availability", "unknown") for port in ports]
+            if available and all(value in ("no", "not available") for value in available):
+                continue
+            connected = any(value in ("yes", "available") for value in available)
+            # Prefer a confirmed connected port, then an already active profile,
+            # then server priorities. Avoid selecting by enumeration order.
+            active = card.get("active_profile")
+            if isinstance(active, dict):
+                active = active.get("name")
+            rank = (connected, active == profile, info.get("priority", 0))
+            candidates.append((rank, name, profile))
+    if not candidates:
+        raise ValueError(f"No available ALSA output supports {requested!r}"
+                         + (f" on {card_name}" if card_name else ""))
+    candidates.sort(reverse=True)
+    best = candidates[0]
+    if len(candidates) > 1 and candidates[1][0] == best[0]:
+        choices = ", ".join(f"{name}: {profile}" for rank, name, profile in candidates if rank == best[0])
+        raise ValueError(f"Multiple equally suitable outputs: {choices}. "
+                         "Select one explicitly with --card alsa_card.NAME.")
+    return best[1], best[2]
 
-    stdout = check_output([PACTL, "list", "cards"]).decode()
 
-    for line in stdout.splitlines():
-        clean_line = line.strip()
-
-        if clean_line.startswith("Name: "):
-            _, device = clean_line.split(".", maxsplit=1)
-
-            if device in profiles_per_card:
-                error = "Device already in dict, didn't expect that"
-                raise ValueError(error)
-
-            current_card = device
-            profiles_per_card[device] = []
-
-        elif clean_line.startswith("output:"):
-            if current_card is None:
-                error = "current_card is still None, didn't expect that"
-                raise ValueError(error)
-
-            profile = clean_line.split(":")[1]
-            profiles_per_card[current_card].append(profile)
-
-    return profiles_per_card
-
-
-def set_device_profile(alsa_device: str, profile: str) -> None:
-    check_output(
-        [
-            PACTL,
-            "set-card-profile",
-            f"alsa_card.{alsa_device}",
-            f"output:{profile}",
-        ],
-        stderr=subprocess.STDOUT,
-    )
-
-
-def switch_profile(profile: str) -> None:
-    profiles_per_device = get_devices_profiles()
-
-    # Filter out devices that don't have the profile we want.
-    profiles_per_device = {
-        device: profiles
-        for device, profiles in profiles_per_device.items()
-        if profile in profiles
-    }
-
-    if len(profiles_per_device) > 1:
-        error = "Not supporting more than one ALSA device yet"
-        raise NotImplementedError(error)
-
-    alsa_device, supported_profiles = next(iter(profiles_per_device.items()))
-
-    if profile not in supported_profiles:
-        print(f"Profile {profile} not found, supported profiles are:")
-
-        for supported_profile in supported_profiles:
-            print(f"- {supported_profile}")
-
-        sys.exit(1)
-
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("profile")
+    parser.add_argument("--card", help="Full ALSA card name, if automatic selection is ambiguous")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
     try:
-        set_device_profile(alsa_device, profile)
-    except CalledProcessError as cpe:
-        print(" ".join(cpe.cmd))
-        print(cpe.stdout.decode())
-        sys.exit(1)
+        result = subprocess.run([PACTL, "--format=json", "list", "cards"],
+                                check=True, capture_output=True, text=True)
+        card, profile = select_profile(json.loads(result.stdout), args.profile, args.card)
+        print(f"Selected {card}: {profile}")
+        if not args.dry_run:
+            subprocess.run([PACTL, "set-card-profile", card, profile],
+                           check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as error:
+        print(f"switch-audio-profile: {error.stderr.strip() or str(error)}", file=sys.stderr)
+        return 1
+    except (ValueError, OSError) as error:
+        print(f"switch-audio-profile: {error}", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} [PROFILE NAME]")
-        sys.exit(1)
-    switch_profile(sys.argv[1])
+    sys.exit(main())
