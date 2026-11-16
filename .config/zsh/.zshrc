@@ -137,12 +137,28 @@ alias ipa='ip -c -br a'
 alias vim='nvim'
 alias gs='git status'
 alias xo='xdg-open'
-alias pandoc='podman run --rm -v "$(pwd):/data" pandoc/extra --template=eisvogel --standalone'
 alias python3='ipython3'
 alias python='ipython'
 alias su='su --pty' # https://www.errno.fr/TTYPushback.html
 alias cat='bat --style=plain --paging=never'
 alias icat="kitten icat"
+
+# Container aliases
+alias pandoc='podman run --rm -v "$(pwd):/data" pandoc/extra --template=eisvogel --standalone'
+alias yt-dlp='podman run --rm -i --userns=keep-id -e HOME=/tmp -v "$PWD:/downloads" docker.io/jauderho/yt-dlp:latest'
+
+# Build tools; generated files are written to the current directory.
+alias hugo='podman run --rm --userns=keep-id \
+  -e HOME=/tmp -e HUGO_CACHEDIR=/tmp/hugo-cache -e GOPATH=/tmp/go \
+  -v "$PWD:/project" -w /project --entrypoint "" \
+  ghcr.io/gohugoio/hugo:latest hugo'
+alias zola='podman run --rm --userns=keep-id -e HOME=/tmp \
+  -v "$PWD:/app" -w /app ghcr.io/getzola/zola:distroless-amd64'
+alias sphinx-build='podman run --rm --userns=keep-id -e HOME=/tmp \
+  -v "$PWD:/docs" -w /docs docker.io/sphinxdoc/sphinx:latest sphinx-build'
+alias latexmk='podman run --rm --userns=keep-id -e HOME=/tmp \
+  -v "$PWD:/workdir" -w /workdir \
+  registry.gitlab.com/islandoftex/images/texlive:latest latexmk'
 
 # Shell specific environment variables (global ones should be in ~/.profile)
 export GPG_TTY="$(tty)"
