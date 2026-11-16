@@ -1,3 +1,10 @@
 .config/zsh/.zcompdump
 .config/nvim/spell/
 .config/nvim/lazyvim.json
+
+.local/share/applications/**
+!.local/share/applications/audio.desktop
+!.local/share/applications/img.desktop
+!.local/share/applications/pdf.desktop
+!.local/share/applications/text.desktop
+!.local/share/applications/video.desktop
