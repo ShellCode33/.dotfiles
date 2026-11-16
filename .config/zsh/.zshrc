@@ -130,24 +130,25 @@ alias sudo='sudo ' # so that other aliases expand when using sudo
 alias proxify='proxify ' # so that other aliases expand when using proxify
 alias cp="cp -i"
 alias grep='grep --color=auto'
-alias ls='ls --color=auto'
+alias ls='ls --color=auto --hyperlink=auto'
 alias ll='ls -l'
 alias l='ls -lA'
 alias ipa='ip -c -br a'
 alias vim='nvim'
 alias gs='git status'
 alias xo='xdg-open'
-alias pandoc='sudo docker run --rm -v "$(pwd):/data" -u $(id -u):$(id -g) pandoc/latex'
+alias pandoc='podman run --rm -v "$(pwd):/data" pandoc/extra --template=eisvogel --standalone'
 alias python3='ipython3'
 alias python='ipython'
 alias su='su --pty' # https://www.errno.fr/TTYPushback.html
 alias cat='bat --style=plain --paging=never'
+alias icat="kitten icat"
 
 # Shell specific environment variables (global ones should be in ~/.profile)
 export GPG_TTY="$(tty)"
 
 # Checking requirements to make sure this zshrc is usable
-requirements=(nvim fzf most docker)
+requirements=(nvim fzf most podman)
 
 for requirement in "${requirements[@]}"
 do
