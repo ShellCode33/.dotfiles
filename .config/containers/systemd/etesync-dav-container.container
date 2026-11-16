@@ -1,0 +1,26 @@
+[Unit]
+Description=EteSync CalDAV and CardDAV adapter
+
+[Container]
+Image=etesync-dav.build
+ContainerName=etesync-dav
+UserNS=keep-id
+Network=pasta:-T,8080
+PublishPort=127.0.0.1:37358:37358
+Volume=%h/.local/share/etesync-dav:/data
+ReadOnly=true
+Tmpfs=/tmp:rw,nodev,nosuid,size=64m,mode=1777
+NoNewPrivileges=true
+DropCapability=all
+
+[Service]
+ExecStartPre=/usr/bin/install -d -m 0700 %h/.local/share/etesync-dav
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=900
+Environment=HTTP_PROXY=http://127.0.0.1:8080 HTTPS_PROXY=http://127.0.0.1:8080
+Environment=http_proxy=http://127.0.0.1:8080 https_proxy=http://127.0.0.1:8080
+Environment=NO_PROXY=localhost,127.0.0.1,::1 no_proxy=localhost,127.0.0.1,::1
+
+[Install]
+WantedBy=default.target

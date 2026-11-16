@@ -1,0 +1,18 @@
+FROM docker.io/library/python:3.12-slim-bookworm
+
+ARG ETESYNC_DAV_VERSION=0.36.0
+
+# EteSync's legacy API still imports SqliteExtDatabase; Radicale uses pkg_resources.
+RUN python -m pip install --no-cache-dir \
+    "https://github.com/etesync/etesync-dav/archive/refs/tags/v${ETESYNC_DAV_VERSION}.tar.gz" \
+    'peewee<4' 'setuptools<81' \
+    && python -m pip check \
+    && python -c 'import etesync_dav.manage'
+
+ENV ETESYNC_DATA_DIR=/data \
+    ETESYNC_SERVER_HOSTS=0.0.0.0:37358 \
+    HOME=/tmp \
+    PYTHONDONTWRITEBYTECODE=1
+USER 65532:65532
+EXPOSE 37358
+ENTRYPOINT ["etesync-dav"]

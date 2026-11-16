@@ -1,0 +1,17 @@
+[Unit]
+Description=Build the EteSync DAV container image
+
+[Build]
+ImageTag=localhost/etesync-dav:latest
+File=etesync-dav/Containerfile
+SetWorkingDirectory=unit
+Network=host
+Pull=missing
+
+[Service]
+# The system proxy cannot be ordered through user-unit dependencies.
+ExecStartPre=/usr/bin/python3 %h/.config/containers/systemd/etesync-dav/wait-for-proxy
+TimeoutStartSec=900
+Environment=HTTP_PROXY=http://127.0.0.1:8080 HTTPS_PROXY=http://127.0.0.1:8080
+Environment=http_proxy=http://127.0.0.1:8080 https_proxy=http://127.0.0.1:8080
+Environment=NO_PROXY=localhost,127.0.0.1,::1 no_proxy=localhost,127.0.0.1,::1

@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+# pyright: strict
+"""Wait for the host proxy before starting the image build."""
+
+import logging
+import socket
+import sys
+import time
+
+
+PROXY_ADDRESS = ("127.0.0.1", 8080)
+TIMEOUT = 60.0
+logger = logging.getLogger("etesync-proxy")
+
+
+def wait_for_proxy(address: tuple[str, int], timeout: float) -> None:
+    deadline = time.monotonic() + timeout
+    last_error: OSError | None = None
+    while (remaining := deadline - time.monotonic()) > 0:
+        try:
+            with socket.create_connection(address, timeout=min(1.0, remaining)):
+                return
+        except OSError as error:
+            last_error = error
+            time.sleep(min(0.25, max(0.0, deadline - time.monotonic())))
+    raise TimeoutError(
+        f"Proxy {address[0]}:{address[1]} was not ready after {timeout:g}s: {last_error}"
+    ) from last_error
+
+
+def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="[%(name)s] [%(levelname)s] %(message)s")
+    logger.info("Waiting up to %gs for proxy %s:%d", TIMEOUT, *PROXY_ADDRESS)
+    try:
+        wait_for_proxy(PROXY_ADDRESS, TIMEOUT)
+    except TimeoutError as error:
+        logger.error("%s", error)
+        return 1
+    logger.info("Local proxy is ready")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
