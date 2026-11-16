@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-# coding: utf-8
 
 import os
-import requests
 import subprocess
 from os.path import exists
-from typing import List
+
+import requests
 
 EMOJI_URL = "https://raw.githubusercontent.com/googlefonts/emoji-metadata/main/emoji_14_0_ordering.json"
 EMOJI_FILE = f"{os.environ['HOME']}/.local/share/emoji"
 
+
 class BemenuBridgeException(Exception):
     pass
+
 
 def notify(title: str, content: str = ""):
     subprocess.run(
@@ -19,15 +20,17 @@ def notify(title: str, content: str = ""):
         check=True,
     )
 
-def bemenu(choices: List[str], prompt: str = "") -> str:
+
+def bemenu(choices: list[str], prompt: str = "") -> str:
     try:
         choice = subprocess.check_output(
             ["bemenu", "-i", "-l", "10", "-p", prompt],
-            input="\n".join(choices).encode()
+            input="\n".join(choices).encode(),
         )
         return choice[:-1].decode()
     except subprocess.CalledProcessError:
         return ""
+
 
 def download_emoji():
     resp = requests.get(EMOJI_URL)
@@ -43,7 +46,6 @@ def download_emoji():
             print(f"Processing group {group}...")
 
             for emoji in entry["emoji"]:
-
                 # Skip "complex" emoji as they are not well supported by many tools (such as bemenu)
                 if len(emoji["base"]) > 2:
                     continue
@@ -52,13 +54,14 @@ def download_emoji():
                 shortcodes = " ".join(emoji["shortcodes"])
                 file.write(f"{emoji_raw} {shortcodes}\n")
 
+
 def insert_emoji():
 
     try:
-        with open(EMOJI_FILE, "r") as file:
+        with open(EMOJI_FILE) as file:
             emoji_file_content = file.read()
-    except FileNotFoundError:
-        raise BemenuBridgeException("Couldn't find emoji file")
+    except FileNotFoundError as error:
+        raise BemenuBridgeException("Couldn't find emoji file") from error
 
     choice = bemenu(emoji_file_content.split("\n"))
 
@@ -68,8 +71,8 @@ def insert_emoji():
             check=True,
         )
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     try:
         if not exists(EMOJI_FILE):
             download_emoji()
@@ -81,4 +84,3 @@ if __name__ == "__main__":
         # Catch all exception and send a notification because bemenu-bridge does
         # not aim to be run in a terminal, therefore its output will be hidden.
         notify(str(exc))
-

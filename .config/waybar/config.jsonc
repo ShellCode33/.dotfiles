@@ -79,7 +79,7 @@
     "exec-on-event": true,
     "on-click": "backlightctl --auto",
     "on-scroll-down": "backlightctl -b -5%",
-    "on-scroll-up": "backlightctl -b +5%"
+    "on-scroll-up": "backlightctl -b +5%",
   },
   "battery": {
     "states": {

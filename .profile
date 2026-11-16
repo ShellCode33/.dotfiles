@@ -1,3 +1,4 @@
+# shellcheck shell=sh
 # Default user shell (in /etc/passwd) should be /bin/sh for POSIX compliance
 # Terminal emulators that don't suck will default to using the SHELL variable
 export SHELL=/usr/bin/zsh
@@ -17,10 +18,12 @@ export XDG_CURRENT_DESKTOP=Hyprland
 
 # Home directories
 set -a
+# shellcheck source=.config/user-dirs.dirs
 . "$HOME/.config/user-dirs.dirs"
 set +a
 
 # Set LS_COLORS environment variable
+# shellcheck source=.config/ls-colors
 . "$XDG_CONFIG_HOME/ls-colors"
 
 # Force QT applications to use Wayland backend
@@ -50,9 +53,9 @@ export IPYTHONDIR="$XDG_CACHE_HOME/ipython" # I don't plan to configure it, put 
 export GOPATH="$XDG_DATA_HOME/go"
 
 # NPM specific
-export NPM_CONFIG_USERCONFIG=$XDG_CONFIG_HOME/npm/config
-export NPM_CONFIG_CACHE=$XDG_CACHE_HOME/npm
-export NPM_CONFIG_TMP=$XDG_RUNTIME_DIR/npm
+export NPM_CONFIG_USERCONFIG="$XDG_CONFIG_HOME/npm/config"
+export NPM_CONFIG_CACHE="$XDG_CACHE_HOME/npm"
+export NPM_CONFIG_TMP="$XDG_RUNTIME_DIR/npm"
 
 # Only for some AMD GPUs, including RX 6600
 if lspci | grep -q 'RX 6600'; then
@@ -64,25 +67,25 @@ export LLAMA_BASE_URL="http://localhost:11434/v1"
 
 case "$(tty)" in
 
-"/dev/tty1")
-  # Run ssh-agent and export its variables
-  eval $(ssh-agent) >/dev/null
+  "/dev/tty1")
+    # Run ssh-agent and export its variables
+    eval "$(ssh-agent)" >/dev/null
 
-  # Import all the environment variables into both dbus and systemd
-  dbus-update-activation-environment --systemd --all
+    # Import all the environment variables into both dbus and systemd
+    dbus-update-activation-environment --systemd --all
 
-  "$XDG_BIN_HOME"/load-gtk-conf # See comments inside the script for why this is needed
-  mkdir -p "$XDG_STATE_HOME"
-  exec /usr/bin/start-hyprland >"$XDG_STATE_HOME/hyprland.log" 2>&1
-  ;;
+    "$XDG_BIN_HOME"/load-gtk-conf # See comments inside the script for why this is needed
+    mkdir -p "$XDG_STATE_HOME"
+    exec /usr/bin/start-hyprland >"$XDG_STATE_HOME/hyprland.log" 2>&1
+    ;;
 
-"/dev/tty"*)
-  # Automatically logout after 10 minutes of inactivity for security purposes.
-  export TMOUT=600
-  exec "$SHELL"
-  ;;
+  "/dev/tty"*)
+    # Automatically logout after 10 minutes of inactivity for security purposes.
+    export TMOUT=600
+    exec "$SHELL"
+    ;;
 
-*)
-  exec "$SHELL"
-  ;;
+  *)
+    exec "$SHELL"
+    ;;
 esac

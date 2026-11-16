@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Select a connected audio profile without assuming a single ALSA card."""
+
 from __future__ import annotations
 
 import argparse
@@ -29,11 +30,16 @@ def select_profile(cards, requested, card_name=None):
             card_ports = card.get("ports") or []
             if isinstance(card_ports, dict):
                 card_ports = card_ports.values()
-            ports = [port for port in card_ports
-                     if profile in port.get("profiles", [])
-                     and port.get("direction") in ("output", 1)]
+            ports = [
+                port
+                for port in card_ports
+                if profile in port.get("profiles", [])
+                and port.get("direction") in ("output", 1)
+            ]
             available = [port.get("availability", "unknown") for port in ports]
-            if available and all(value in ("no", "not available") for value in available):
+            if available and all(
+                value in ("no", "not available") for value in available
+            ):
                 continue
             connected = any(value in ("yes", "available") for value in available)
             # Prefer a confirmed connected port, then an already active profile,
@@ -44,33 +50,56 @@ def select_profile(cards, requested, card_name=None):
             rank = (connected, active == profile, info.get("priority", 0))
             candidates.append((rank, name, profile))
     if not candidates:
-        raise ValueError(f"No available ALSA output supports {requested!r}"
-                         + (f" on {card_name}" if card_name else ""))
+        raise ValueError(
+            f"No available ALSA output supports {requested!r}"
+            + (f" on {card_name}" if card_name else "")
+        )
     candidates.sort(reverse=True)
     best = candidates[0]
     if len(candidates) > 1 and candidates[1][0] == best[0]:
-        choices = ", ".join(f"{name}: {profile}" for rank, name, profile in candidates if rank == best[0])
-        raise ValueError(f"Multiple equally suitable outputs: {choices}. "
-                         "Select one explicitly with --card alsa_card.NAME.")
+        choices = ", ".join(
+            f"{name}: {profile}"
+            for rank, name, profile in candidates
+            if rank == best[0]
+        )
+        raise ValueError(
+            f"Multiple equally suitable outputs: {choices}. "
+            "Select one explicitly with --card alsa_card.NAME."
+        )
     return best[1], best[2]
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("profile")
-    parser.add_argument("--card", help="Full ALSA card name, if automatic selection is ambiguous")
+    parser.add_argument(
+        "--card", help="Full ALSA card name, if automatic selection is ambiguous"
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     try:
-        result = subprocess.run([PACTL, "--format=json", "list", "cards"],
-                                check=True, capture_output=True, text=True)
-        card, profile = select_profile(json.loads(result.stdout), args.profile, args.card)
+        result = subprocess.run(
+            [PACTL, "--format=json", "list", "cards"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        card, profile = select_profile(
+            json.loads(result.stdout), args.profile, args.card
+        )
         print(f"Selected {card}: {profile}")
         if not args.dry_run:
-            subprocess.run([PACTL, "set-card-profile", card, profile],
-                           check=True, capture_output=True, text=True)
+            subprocess.run(
+                [PACTL, "set-card-profile", card, profile],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
     except subprocess.CalledProcessError as error:
-        print(f"switch-audio-profile: {error.stderr.strip() or str(error)}", file=sys.stderr)
+        print(
+            f"switch-audio-profile: {error.stderr.strip() or str(error)}",
+            file=sys.stderr,
+        )
         return 1
     except (ValueError, OSError) as error:
         print(f"switch-audio-profile: {error}", file=sys.stderr)

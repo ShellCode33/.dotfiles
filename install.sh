@@ -70,6 +70,7 @@ cut -s -d'"' -f2 "$HOME/.config/user-dirs.dirs" | sed "s|\$HOME|$HOME|g" | xargs
 mkdir -p "$HOME/dev"
 
 # Source XDG variables
+# shellcheck source=.config/user-dirs.dirs
 source "$HOME/.config/user-dirs.dirs"
 mkdir -p "$XDG_CACHE_HOME" "$XDG_STATE_HOME"
 

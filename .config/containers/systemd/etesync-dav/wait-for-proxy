@@ -7,7 +7,6 @@ import socket
 import sys
 import time
 
-
 PROXY_ADDRESS = ("127.0.0.1", 8080)
 TIMEOUT = 60.0
 logger = logging.getLogger("etesync-proxy")
@@ -29,7 +28,9 @@ def wait_for_proxy(address: tuple[str, int], timeout: float) -> None:
 
 
 def main() -> int:
-    logging.basicConfig(level=logging.INFO, format="[%(name)s] [%(levelname)s] %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="[%(name)s] [%(levelname)s] %(message)s"
+    )
     logger.info("Waiting up to %gs for proxy %s:%d", TIMEOUT, *PROXY_ADDRESS)
     try:
         wait_for_proxy(PROXY_ADDRESS, TIMEOUT)
