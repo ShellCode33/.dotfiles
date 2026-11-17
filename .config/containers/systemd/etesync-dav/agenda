@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# pyright: strict
 """Print a read-only agenda using the calendar libraries in EteSync DAV."""
 
 import argparse
