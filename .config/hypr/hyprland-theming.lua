@@ -1,36 +1,36 @@
 -- Theme migrated from hyprland-theming.conf.
 hl.config({
-  general = {
-    gaps_in = 3,
-    gaps_out = 8,
-    border_size = 3,
-    ["col.active_border"] = "rgb(b71c1c)",
-    ["col.inactive_border"] = "rgb(1d2021)",
-  },
-  decoration = {
-    rounding = 5,
-    active_opacity = 1.0,
-    inactive_opacity = 1.0,
-    shadow = {
-      enabled = true,
-      range = 4,
-      render_power = 3,
-      color = "rgba(1a1a1aee)",
+    general = {
+        gaps_in = 3,
+        gaps_out = 8,
+        border_size = 3,
+        ["col.active_border"] = "rgb(b71c1c)",
+        ["col.inactive_border"] = "rgb(1d2021)",
     },
-    blur = {
-      enabled = true,
-      size = 3,
-      passes = 1,
-      vibrancy = 0.1696,
+    decoration = {
+        rounding = 5,
+        active_opacity = 1.0,
+        inactive_opacity = 1.0,
+        shadow = {
+            enabled = true,
+            range = 4,
+            render_power = 3,
+            color = "rgba(1a1a1aee)",
+        },
+        blur = {
+            enabled = true,
+            size = 3,
+            passes = 1,
+            vibrancy = 0.1696,
+        },
     },
-  },
-  animations = {
-    enabled = true,
-  },
-  misc = {
-    force_default_wallpaper = 0,
-    disable_hyprland_logo = true,
-  },
+    animations = {
+        enabled = true,
+    },
+    misc = {
+        force_default_wallpaper = 0,
+        disable_hyprland_logo = true,
+    },
 })
 
 hl.curve("easeOutQuint", { type = "bezier", points = { { 0.23, 1 }, { 0.32, 1 } } })

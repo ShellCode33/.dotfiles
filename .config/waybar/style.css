@@ -17,52 +17,52 @@
 @define-color accent-hover rgb (0x9d, 0x00, 0x06);
 
 @keyframes blink {
-  to {
-    background-color: @bg0;
-  }
+    to {
+        background-color: @bg0;
+    }
 }
 
 * {
-  font-family: monospace;
-  font-size: 13px;
+    font-family: monospace;
+    font-size: 13px;
 }
 
 #waybar {
-  background-color: @bg0;
-  color: @fg0;
+    background-color: @bg0;
+    color: @fg0;
 }
 
 /* If workspaces is the leftmost module, omit left margin */
 .modules-left > widget:first-child > #workspaces {
-  margin-left: 0;
+    margin-left: 0;
 }
 
 /* If workspaces is the rightmost module, omit right margin */
 .modules-right > widget:last-child > #workspaces {
-  margin-right: 0;
+    margin-right: 0;
 }
 
 #workspaces button {
-  padding: 0 0px;
-  background-color: transparent;
-  color: @fg0;
+    padding: 0 0px;
+    background-color: transparent;
+    color: @fg0;
 }
 
 #workspaces button:hover {
-  background-color: @accent-hover;
+    background-color: @accent-hover;
 }
 
 #workspaces button.active {
-  background-color: @accent;
+    background-color: @accent;
 }
 
 #workspaces button.urgent {
-  background-color: @accent;
-  animation-name: blink;
-  animation-duration: 0.5s;
-  animation-timing-function: steps(12);
-  animation-iteration-count: infinite;
-  animation-direction: alternate;
+    background-color: @accent;
+    animation-name: blink;
+    animation-duration: 0.5s;
+    animation-timing-function: steps(12);
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
 }
 
 #clock,
@@ -83,128 +83,128 @@
 #systemd-failed-units,
 #custom-backlight,
 #custom-power {
-  padding: 0 10px;
-  color: @fg0;
+    padding: 0 10px;
+    color: @fg0;
 }
 
 #privacy {
-  background-color: @accent;
-  animation-name: blink;
-  animation-duration: 0.8s;
-  animation-timing-function: steps(12);
-  animation-iteration-count: infinite;
-  animation-direction: alternate;
+    background-color: @accent;
+    animation-name: blink;
+    animation-duration: 0.8s;
+    animation-timing-function: steps(12);
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
 }
 
 #systemd-failed-units {
-  background-color: @accent;
+    background-color: @accent;
 }
 
 #mpris {
-  background-color: @bg1;
+    background-color: @bg1;
 }
 
 #mpris:hover {
-  background-color: @bg1-hover;
+    background-color: @bg1-hover;
 }
 
 #pulseaudio {
-  background-color: @bg0;
+    background-color: @bg0;
 }
 
 #pulseaudio:hover {
-  background-color: @bg0-hover;
+    background-color: @bg0-hover;
 }
 
 #custom-backlight {
-  background-color: @accent;
+    background-color: @accent;
 }
 
 #custom-backlight:hover {
-  background-color: @accent-hover;
+    background-color: @accent-hover;
 }
 
 #network {
-  background-color: @bg1;
-  min-width: 200px;
+    background-color: @bg1;
+    min-width: 200px;
 }
 
 #network.disconnected {
-  background-color: @bg1;
-  min-width: 200px;
+    background-color: @bg1;
+    min-width: 200px;
 }
 
 #memory {
-  background-color: @bg0;
+    background-color: @bg0;
 }
 
 #memory.warning {
-  background-color: @bg0;
-  animation-name: blink;
-  animation-duration: 0.5s;
-  animation-timing-function: steps(12);
-  animation-iteration-count: infinite;
-  animation-direction: alternate;
+    background-color: @bg0;
+    animation-name: blink;
+    animation-duration: 0.5s;
+    animation-timing-function: steps(12);
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
 }
 
 #cpu {
-  background-color: @accent;
+    background-color: @accent;
 }
 
 #temperature {
-  background-color: @accent;
+    background-color: @accent;
 }
 
 #temperature.critical {
-  background-color: @accent;
-  animation-name: blink;
-  animation-duration: 0.5s;
-  animation-timing-function: steps(12);
-  animation-iteration-count: infinite;
-  animation-direction: alternate;
+    background-color: @accent;
+    animation-name: blink;
+    animation-duration: 0.5s;
+    animation-timing-function: steps(12);
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
 }
 
 #language {
-  background-color: @bg1;
+    background-color: @bg1;
 }
 
 #language:hover {
-  background-color: @bg1-hover;
+    background-color: @bg1-hover;
 }
 
 #clock {
-  background-color: @bg0;
+    background-color: @bg0;
 }
 
 #clock:hover {
-  background-color: @bg0-hover;
+    background-color: @bg0-hover;
 }
 
 #battery {
-  background-color: @accent;
+    background-color: @accent;
 }
 
 #battery.critical:not(.charging) {
-  background-color: @accent;
-  animation-name: blink;
-  animation-duration: 0.5s;
-  animation-timing-function: steps(12);
-  animation-iteration-count: infinite;
-  animation-direction: alternate;
+    background-color: @accent;
+    animation-name: blink;
+    animation-duration: 0.5s;
+    animation-timing-function: steps(12);
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
 }
 
 #custom-power {
-  background-color: @accent;
+    background-color: @accent;
 }
 
 #custom-power:hover {
-  background-color: @accent-hover;
+    background-color: @accent-hover;
 }
 
 #custom-calendar:hover {
-  background-color: @bg0-hover;
+    background-color: @bg0-hover;
 }
 
 #custom-calendar.unavailable {
-  color: @accent;
+    color: @accent;
 }

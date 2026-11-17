@@ -2,14 +2,14 @@
 --       What's being configured here are all the tools not already handled
 --       by LSPs and LazyVim extras.
 return {
-  {
-    "mason-org/mason.nvim",
-    opts = function(_, opts)
-      opts.ensure_installed = opts.ensure_installed or {}
-      vim.list_extend(opts.ensure_installed, {
-        "bash-language-server",
-        "shellcheck",
-      })
-    end,
-  },
+    {
+        "mason-org/mason.nvim",
+        opts = function(_, opts)
+            opts.ensure_installed = opts.ensure_installed or {}
+            vim.list_extend(opts.ensure_installed, {
+                "bash-language-server",
+                "shellcheck",
+            })
+        end,
+    },
 }

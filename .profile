@@ -59,7 +59,7 @@ export NPM_CONFIG_TMP="$XDG_RUNTIME_DIR/npm"
 
 # Only for some AMD GPUs, including RX 6600
 if lspci | grep -q 'RX 6600'; then
-  export HSA_OVERRIDE_GFX_VERSION=10.3.0
+    export HSA_OVERRIDE_GFX_VERSION=10.3.0
 fi
 
 # llamacpp configuration
@@ -67,25 +67,25 @@ export LLAMA_BASE_URL="http://localhost:11434/v1"
 
 case "$(tty)" in
 
-  "/dev/tty1")
-    # Run ssh-agent and export its variables
-    eval "$(ssh-agent)" >/dev/null
+    "/dev/tty1")
+        # Run ssh-agent and export its variables
+        eval "$(ssh-agent)" >/dev/null
 
-    # Import all the environment variables into both dbus and systemd
-    dbus-update-activation-environment --systemd --all
+        # Import all the environment variables into both dbus and systemd
+        dbus-update-activation-environment --systemd --all
 
-    "$XDG_BIN_HOME"/load-gtk-conf # See comments inside the script for why this is needed
-    mkdir -p "$XDG_STATE_HOME"
-    exec /usr/bin/start-hyprland >"$XDG_STATE_HOME/hyprland.log" 2>&1
-    ;;
+        "$XDG_BIN_HOME"/load-gtk-conf # See comments inside the script for why this is needed
+        mkdir -p "$XDG_STATE_HOME"
+        exec /usr/bin/start-hyprland >"$XDG_STATE_HOME/hyprland.log" 2>&1
+        ;;
 
-  "/dev/tty"*)
-    # Automatically logout after 10 minutes of inactivity for security purposes.
-    export TMOUT=600
-    exec "$SHELL"
-    ;;
+    "/dev/tty"*)
+        # Automatically logout after 10 minutes of inactivity for security purposes.
+        export TMOUT=600
+        exec "$SHELL"
+        ;;
 
-  *)
-    exec "$SHELL"
-    ;;
+    *)
+        exec "$SHELL"
+        ;;
 esac
