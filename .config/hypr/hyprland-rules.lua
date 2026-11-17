@@ -28,3 +28,9 @@ hl.window_rule({
     move = "(10) ((monitor_h*1)-window_h-10)",
     match = { class = "eu.betterbird.Betterbird", title = ".*Reminder" },
 })
+
+hl.window_rule({
+    name = "flameshot-floating",
+    float = true,
+    match = { class = "flameshot" },
+})
