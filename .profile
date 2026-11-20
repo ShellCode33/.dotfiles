@@ -4,9 +4,9 @@
 export SHELL=/usr/bin/zsh
 
 # A few basics
-export PATH="/usr/local/bin:/usr/bin:$HOME/.local/bin"
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin"
 export EDITOR='nvim'
-export MANPAGER='nvim -n -i NONE +Man!'
+export MANPAGER='/usr/bin/nvim -n -i NONE +Man!'
 export PAGER='most'
 export WORDCHARS='-_'
 export LANG='en_US.UTF-8'
