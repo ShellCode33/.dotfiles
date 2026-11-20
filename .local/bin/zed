@@ -19,6 +19,7 @@ import tempfile
 import tomllib
 import urllib.request
 from pathlib import Path
+from urllib.parse import urlsplit
 
 CONFIG_HOME = Path.home() / ".config"
 ROOT = CONFIG_HOME / "containers/zed"
@@ -26,6 +27,20 @@ ZED_CONFIG = CONFIG_HOME / "zed"
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "zed-box"
 ARTIFACTS = CACHE / "artifacts"
 CONTAINER_HOSTNAME = "zed-box"
+PROXY_VARIABLES = (
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "FTP_PROXY",
+    "ALL_PROXY",
+    "NO_PROXY",
+    "RSYNC_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "ftp_proxy",
+    "all_proxy",
+    "no_proxy",
+    "rsync_proxy",
+)
 
 
 def fail(message):
@@ -49,6 +64,31 @@ def run(args, **kwargs):
 
 def output(args):
     return run(args, stdout=subprocess.PIPE, text=True).stdout.strip()
+
+
+def loopback_proxy_ports(variables):
+    ports = set()
+    default_ports = {
+        "ftp": 21,
+        "https": 443,
+        "socks4": 1080,
+        "socks4a": 1080,
+        "socks5": 1080,
+        "socks5h": 1080,
+    }
+    for name in variables:
+        if name.lower() == "no_proxy" or not (value := os.environ.get(name)):
+            continue
+        proxy = urlsplit(value if "://" in value else f"//{value}")
+        if proxy.hostname in {"localhost", "127.0.0.1", "::1"}:
+            ports.add(proxy.port or default_ports.get(proxy.scheme, 80))
+    return sorted(ports)
+
+
+def pasta_network(ports):
+    return "--network=pasta" + (
+        ":" + ",".join(f"-T,{port}" for port in ports) if ports else ""
+    )
 
 
 def sha(path):
@@ -275,21 +315,9 @@ def build(config, prepare_only=False):
             "--build-arg",
             "BASE_IMAGE=" + config["base_image"],
         ]
-        proxy_variables = (
-            "HTTP_PROXY",
-            "HTTPS_PROXY",
-            "FTP_PROXY",
-            "ALL_PROXY",
-            "NO_PROXY",
-            "RSYNC_PROXY",
-            "http_proxy",
-            "https_proxy",
-            "ftp_proxy",
-            "all_proxy",
-            "no_proxy",
-            "rsync_proxy",
-            "NPM_PROXY",
-        )
+        proxy_variables = (*PROXY_VARIABLES, "NPM_PROXY")
+        if ports := loopback_proxy_ports(proxy_variables):
+            command.append(pasta_network(ports))
         # Podman reads the values from its environment when given only the names.
         for name in proxy_variables:
             if name in os.environ:
@@ -336,6 +364,8 @@ def container_project_path(project):
 def host_check():
     if os.getuid() == 0:
         fail("Run as your normal user, never sudo.")
+    if not shutil.which("pasta"):
+        fail("Install passt to provide the pasta network helper.")
     info = json.loads(output(["podman", "info", "--format=json"]))
     if not info["host"]["security"]["rootless"]:
         fail("The outer Podman must be rootless.")
@@ -358,8 +388,18 @@ def host_check():
         )
 
 
-def base_command(config, project, name):
+def base_command(config, project, name, temporary):
     destination = container_project_path(project)
+    forward_proxy = config.get("forward_proxy", False)
+    runtime_proxies = (
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "FTP_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "ftp_proxy",
+    )
+    ports = loopback_proxy_ports(runtime_proxies) if forward_proxy else []
     args = [
         "podman",
         "run",
@@ -378,9 +418,9 @@ def base_command(config, project, name):
         "--security-opt=seccomp=" + str(ROOT / "seccomp-nesting.json"),
         "--device=/dev/fuse",
         "--device=/dev/net/tun",
-        "--network=slirp4netns:allow_host_loopback=false",
+        pasta_network(ports),
         "--hosts-file=none",
-        "--http-proxy=" + str(config.get("forward_proxy", False)).lower(),
+        "--http-proxy=" + str(forward_proxy).lower(),
         "--mount=type=tmpfs,destination=/home/zed,tmpfs-mode=0700,tmpfs-size=4294967296,U=true,exec,nosuid,nodev",
         "--tmpfs=/tmp:rw,exec,nosuid,nodev,mode=1777,size=4g",
         "--shm-size=512m",
@@ -391,6 +431,19 @@ def base_command(config, project, name):
         "--mount",
         f"type=bind,src={project},dst={destination},rw",
     ]
+    if ports:
+        # Each nested network namespace needs its own path to the outer proxy.
+        inner_config = temporary / "proxy.conf"
+        options = json.dumps(["-T", ",".join(map(str, ports))])
+        inner_config.write_text(f"[network]\npasta_options = {options}\n")
+        inner_destination = "/etc/containers/zed-proxy.conf"
+        args.extend(
+            [
+                "--mount",
+                f"type=bind,src={inner_config},dst={inner_destination},ro",
+                f"--env=CONTAINERS_CONF_OVERRIDE={inner_destination}",
+            ]
+        )
     # SELinux labeling can block nested mounts; the host determines LSM policy.
     if Path("/sys/fs/selinux/enforce").exists():
         args.append("--security-opt=label=disable")
@@ -602,12 +655,15 @@ def launch(config, project, action):
         return
     # Serialize storage use; a second concurrent launcher must not share a graphroot.
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
-    with (runtime / (name + ".lock")).open("w") as lock:
+    with (
+        (runtime / (name + ".lock")).open("w") as lock,
+        tempfile.TemporaryDirectory(prefix="zed-network-", dir=runtime) as temporary,
+    ):
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             fail("This project is starting or stopping. Retry in a moment.")
-        args = base_command(config, project, name)
+        args = base_command(config, project, name, Path(temporary))
         if action == "shell":
             args.append("-it")
             run(args + [config["image"], "--shell"])
@@ -644,7 +700,7 @@ def main():
     elif args.command == "doctor":
         host_check()
         print(
-            "Host rootless Podman, subordinate IDs, FUSE and TUN prerequisites passed."
+            "Host rootless Podman, pasta, subordinate IDs, FUSE and TUN prerequisites passed."
         )
         print(f"Display prerequisites passed: {display_check(config)}.")
     else:
