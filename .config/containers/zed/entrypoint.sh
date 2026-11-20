@@ -1,9 +1,10 @@
 #!/bin/sh
 set -eu
 umask 077
-mkdir -p "$XDG_RUNTIME_DIR" "$HOME/.cache" "$HOME/.local/share/zed/extensions/installed"
-# Only this image's declared extensions are restored; all editor state is ephemeral.
-cp -a /opt/zed-extensions/. "$HOME/.local/share/zed/extensions/installed/"
+extensions="$XDG_DATA_HOME/zed/extensions"
+mkdir -p "$XDG_RUNTIME_DIR" "$HOME/.cache" "$extensions"
+# The installed extensions are image files. Zed writes its index and work files beside this link.
+ln -sfnT -- /opt/zed-extensions "$extensions/installed"
 if [ "${1:-}" = "--shell" ]; then
     shift
     exec /bin/bash "$@"
