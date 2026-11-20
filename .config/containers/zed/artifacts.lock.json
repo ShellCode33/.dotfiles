@@ -1,0 +1,60 @@
+{
+    "tools": [
+        {
+            "id": "neocmakelsp",
+            "repo": "Decodetalkers/neocmakelsp",
+            "tag": "v0.8.26",
+            "asset": "neocmakelsp-x86_64-unknown-linux-musl",
+            "destination": "bin/neocmakelsp",
+            "file": "neocmakelsp-15b1a7716367e918",
+            "sha256": "15b1a7716367e9182bb3f35d14d4a62c9175399599e29f70cba1a9924764ad8c",
+            "url": "https://github.com/neocmakelsp/neocmakelsp/releases/download/v0.8.26/neocmakelsp-x86_64-unknown-linux-musl"
+        },
+        {
+            "id": "phpactor",
+            "repo": "phpactor/phpactor",
+            "tag": "2025.10.17.0",
+            "asset": "phpactor.phar",
+            "destination": "lib/phpactor.phar",
+            "file": "phpactor-13bdb7c639466096",
+            "sha256": "13bdb7c63946609672ff88acc395a4ff90f99b3f28e3b095e190837600e68fa6",
+            "url": "https://github.com/phpactor/phpactor/releases/download/2025.10.17.0/phpactor.phar"
+        }
+    ],
+    "zed": {
+        "version": "v1.29.2",
+        "url": "https://github.com/zed-industries/zed/releases/download/v1.29.2/zed-linux-x86_64.tar.gz",
+        "file": "zed-3584ba728a182d02.tar.gz",
+        "sha256": "3584ba728a182d0281ffd269361330d077ec9511c537432a7d9142bc76a7ffa2"
+    },
+    "extensions": [
+        {
+            "id": "lua",
+            "version": "0.1.11",
+            "file": "lua-cb879b1822cecf92.tar.gz",
+            "sha256": "cb879b1822cecf9208be174a3e1cf7fded7517ae643c6cef39a50e2430905f16",
+            "url": "https://api.zed.dev/extensions/lua/0.1.11/download"
+        },
+        {
+            "id": "neocmake",
+            "version": "1.0.0",
+            "file": "neocmake-8eab828269441fe6.tar.gz",
+            "sha256": "8eab828269441fe6e84fe4c6e383224821202d74560b4784ba2a34a48ab40e13",
+            "url": "https://api.zed.dev/extensions/neocmake/1.0.0/download"
+        },
+        {
+            "id": "dockerfile",
+            "version": "0.3.0",
+            "file": "dockerfile-864355876074a9ac.tar.gz",
+            "sha256": "864355876074a9acecbd64bc8ed4e34273f94e88a7a58078c9c3aa94ac2aa364",
+            "url": "https://api.zed.dev/extensions/dockerfile/0.3.0/download"
+        },
+        {
+            "id": "php",
+            "version": "0.5.4",
+            "file": "php-54d85b070efe152a.tar.gz",
+            "sha256": "54d85b070efe152adabfe06f5df8b6e60b8d7ab7fa845ef1fbcea5c441f32e85",
+            "url": "https://api.zed.dev/extensions/php/0.5.4/download"
+        }
+    ]
+}

@@ -1,0 +1,32 @@
+[
+    {
+        "context": "(Editor && vim_mode == normal && !menu) || (ProjectPanel && not_editing) || (!Editor && !Terminal && !menu)",
+        "bindings": {
+            "space": null
+        }
+    },
+    {
+        "context": "(Editor && vim_mode == normal && !menu) || (ProjectPanel && not_editing) || (!Editor && !Terminal && !menu)",
+        "bindings": {
+            "space space": "file_finder::Toggle",
+            "space s": "project_symbols::Toggle",
+            "space e": "workspace::ToggleLeftDock",
+            "space a": "workspace::ToggleRightDock"
+        }
+    },
+    {
+        "context": "Editor && vim_mode == normal && !menu",
+        "bindings": {
+            "shift-h": "pane::ActivatePreviousItem",
+            "shift-l": "pane::ActivateNextItem",
+            "g r": "editor::FindAllReferences"
+        }
+    },
+    {
+        "context": "Workspace",
+        "bindings": {
+            "ctrl-space e": "workspace::ToggleLeftDock",
+            "ctrl-space a": "workspace::ToggleRightDock"
+        }
+    }
+]

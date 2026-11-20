@@ -1,0 +1,102 @@
+{
+    "session": {
+        "trust_all_worktrees": true
+    },
+    "auto_update": false,
+    "node": {
+        "path": "/usr/bin/node",
+        "npm_path": "/usr/bin/npm"
+    },
+    "lsp": {
+        "pyright": {
+            "binary": {
+                "path": "/usr/bin/pyright-langserver",
+                "arguments": ["--stdio"]
+            }
+        },
+        "ruff": {
+            "binary": {
+                "path": "/usr/bin/ruff",
+                "arguments": ["server"]
+            }
+        },
+        "rust-analyzer": {
+            "binary": {
+                "path": "/usr/bin/rust-analyzer",
+                "arguments": []
+            }
+        },
+        "clangd": {
+            "binary": {
+                "path": "/usr/bin/clangd",
+                "arguments": ["--background-index", "--clang-tidy"]
+            }
+        },
+        "cmake": {
+            "binary": {
+                "path": "/opt/zed-tools/bin/neocmakelsp",
+                "arguments": ["--stdio"]
+            }
+        },
+        "dockerfile-language-server": {
+            "binary": {
+                "path": "/usr/bin/docker-langserver",
+                "arguments": ["--stdio"]
+            }
+        },
+        "docker-language-server": {
+            "binary": {
+                "path": "/opt/zed-tools/node_modules/.bin/docker-compose-langserver",
+                "arguments": ["--stdio"]
+            }
+        },
+        "vtsls": {
+            "binary": {
+                "path": "/opt/zed-tools/node_modules/.bin/vtsls",
+                "arguments": ["--stdio"]
+            }
+        },
+        "eslint": {
+            "binary": {
+                "path": "/opt/zed-tools/node_modules/.bin/vscode-eslint-language-server",
+                "arguments": ["--stdio"]
+            }
+        },
+        "yaml-language-server": {
+            "binary": {
+                "path": "/usr/bin/yaml-language-server",
+                "arguments": ["--stdio"]
+            }
+        },
+        "json-language-server": {
+            "binary": {
+                "path": "/usr/bin/vscode-json-language-server",
+                "arguments": ["--stdio"]
+            }
+        },
+        "marksman": {
+            "binary": {
+                "path": "/usr/bin/marksman",
+                "arguments": ["server"]
+            }
+        },
+        "phpactor": {
+            "binary": {
+                "path": "/opt/zed-tools/bin/phpactor",
+                "arguments": ["language-server"]
+            }
+        },
+        "lua-language-server": {
+            "binary": {
+                "path": "/usr/bin/lua-language-server",
+                "arguments": []
+            }
+        },
+        "bash-language-server": {
+            "binary": {
+                "path": "/usr/bin/bash-language-server",
+                "arguments": ["start"]
+            }
+        }
+    }
+}

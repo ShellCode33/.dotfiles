@@ -1,0 +1,669 @@
+#!/usr/bin/env python3
+"""Host launcher. No shell evaluation of project paths or configuration values."""
+
+import argparse
+import contextlib
+import fcntl
+import hashlib
+import json
+import os
+import platform
+import re
+import secrets
+import select
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import tomllib
+import urllib.request
+from pathlib import Path
+
+CONFIG_HOME = Path.home() / ".config"
+ROOT = CONFIG_HOME / "containers/zed"
+ZED_CONFIG = CONFIG_HOME / "zed"
+CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "zed-box"
+ARTIFACTS = CACHE / "artifacts"
+CONTAINER_HOSTNAME = "zed-box"
+
+
+def fail(message):
+    raise RuntimeError(message)
+
+
+def read_json(path):
+    return json.loads(Path(path).read_text())
+
+
+def write_json(path, data):
+    path = Path(path)
+    temp = path.with_suffix(path.suffix + ".tmp")
+    temp.write_text(json.dumps(data, indent=2) + "\n")
+    temp.replace(path)
+
+
+def run(args, **kwargs):
+    return subprocess.run([str(a) for a in args], check=True, **kwargs)
+
+
+def output(args):
+    return run(args, stdout=subprocess.PIPE, text=True).stdout.strip()
+
+
+def sha(path):
+    with Path(path).open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def fetch(url, path):
+    if not url.startswith("https://"):
+        fail("Downloads must use HTTPS")
+    print(f"Downloading {url}", flush=True)
+    request = urllib.request.Request(url, headers={"User-Agent": "zed-box"})
+    temporary = Path(str(path) + ".part")
+    try:
+        with (
+            urllib.request.urlopen(request, timeout=120) as response,
+            temporary.open("wb") as dest,
+        ):
+            if not response.url.startswith("https://"):
+                fail("Refusing a non-HTTPS redirect")
+            shutil.copyfileobj(response, dest)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def declared_extensions():
+    settings = read_json(ZED_CONFIG / "settings.json")
+    return [
+        name
+        for name, enabled in settings.get("auto_install_extensions", {}).items()
+        if enabled
+    ]
+
+
+def merge_settings(shared, overrides):
+    for key, value in overrides.items():
+        if isinstance(value, dict) and isinstance(shared.get(key), dict):
+            merge_settings(shared[key], value)
+        else:
+            shared[key] = value
+    return shared
+
+
+def lock_tool_binaries():
+    tools = []
+    for tool in read_json(ROOT / "tools/releases.json"):
+        metadata_path = ARTIFACTS / (tool["id"] + "-release.json")
+        fetch(
+            f"https://api.github.com/repos/{tool['repo']}/releases/tags/{tool['tag']}",
+            metadata_path,
+        )
+        metadata = read_json(metadata_path)
+        asset = next(a for a in metadata["assets"] if a["name"] == tool["asset"])
+        expected = asset.get("digest", "")
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", expected or ""):
+            fail(f"Release has no GitHub SHA256 digest for {tool['id']}")
+        filename = tool["id"] + "-" + expected[7:23]
+        path = ARTIFACTS / filename
+        if not path.exists() or sha(path) != expected[7:]:
+            fetch(asset["browser_download_url"], path)
+        if sha(path) != expected[7:]:
+            fail(f"Digest mismatch for {tool['id']}")
+        tools.append(
+            dict(
+                tool,
+                file=filename,
+                sha256=expected[7:],
+                url=asset["browser_download_url"],
+            )
+        )
+    return tools
+
+
+def lock_artifacts(release):
+    if platform.machine() != "x86_64":
+        fail("The declared Zed and tool release assets require an x86_64 host.")
+    ARTIFACTS.mkdir(parents=True, exist_ok=True)
+    endpoint = "latest" if release == "latest" else "tags/" + release
+    if not re.fullmatch(r"[a-zA-Z0-9._-]+", release):
+        fail("Invalid release tag")
+    metadata_path = ARTIFACTS / "release.json"
+    fetch(
+        "https://api.github.com/repos/zed-industries/zed/releases/" + endpoint,
+        metadata_path,
+    )
+    metadata = read_json(metadata_path)
+    asset = next(
+        a for a in metadata["assets"] if a["name"] == "zed-linux-x86_64.tar.gz"
+    )
+    expected = asset.get("digest", "")
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", expected or ""):
+        fail(
+            "Release has no GitHub SHA256 digest; refusing an unverified editor download."
+        )
+    filename = f"zed-{expected[7:23]}.tar.gz"
+    if not (ARTIFACTS / filename).exists() or sha(ARTIFACTS / filename) != expected[7:]:
+        fetch(asset["browser_download_url"], ARTIFACTS / filename)
+    if sha(ARTIFACTS / filename) != expected[7:]:
+        fail("Zed release digest mismatch")
+    extensions = []
+    for extension in declared_extensions():
+        if not re.fullmatch(r"[a-z0-9_-]+", extension):
+            fail(f"Invalid extension ID: {extension}")
+        archive_path = ARTIFACTS / (extension + ".tar.gz")
+        fetch(f"https://api.zed.dev/extensions/{extension}/download", archive_path)
+        with tarfile.open(archive_path) as archive:
+            member = next(
+                (
+                    m
+                    for m in archive.getmembers()
+                    if m.name in {"extension.toml", "./extension.toml"}
+                ),
+                None,
+            )
+            if member is None:
+                fail(f"Extension manifest missing from {extension}")
+            if not member.isfile() or member.size > 1024 * 1024:
+                fail("Invalid extension manifest")
+            manifest = tomllib.loads(archive.extractfile(member).read().decode())
+        if manifest["id"] != extension:
+            fail("Extension ID mismatch")
+        digest = sha(archive_path)
+        filename = f"{extension}-{digest[:16]}.tar.gz"
+        archive_path.replace(ARTIFACTS / filename)
+        extensions.append(
+            {
+                "id": extension,
+                "version": manifest["version"],
+                "file": filename,
+                "sha256": digest,
+                "url": f"https://api.zed.dev/extensions/{extension}/{manifest['version']}/download",
+            }
+        )
+    lock = {
+        "tools": lock_tool_binaries(),
+        "zed": {
+            "version": metadata["tag_name"],
+            "url": asset["browser_download_url"],
+            "file": f"zed-{expected[7:23]}.tar.gz",
+            "sha256": expected[7:],
+        },
+        "extensions": extensions,
+    }
+    write_json(ROOT / "artifacts.lock.json", lock)
+    print(
+        "Wrote artifacts.lock.json. Zed, extensions and upstream binaries are locked; Arch packages refresh on every build."
+    )
+
+
+@contextlib.contextmanager
+def build_directory(preserve=False):
+    CACHE.mkdir(parents=True, exist_ok=True)
+    directory = Path(tempfile.mkdtemp(prefix="build-", dir=CACHE))
+    try:
+        yield directory
+    except BaseException:
+        shutil.rmtree(directory)
+        raise
+    else:
+        if not preserve:
+            shutil.rmtree(directory)
+
+
+def build(config, prepare_only=False):
+    if not (ROOT / "artifacts.lock.json").exists():
+        fail(
+            "No artifact lock yet. Run zed lock from a host terminal with network access, then zed build."
+        )
+    lock = read_json(ROOT / "artifacts.lock.json")
+    extensions = declared_extensions()
+    if set(extensions) != {e["id"] for e in lock["extensions"]}:
+        fail("Extension list changed; run lock first.")
+    declared_tools = read_json(ROOT / "tools/releases.json")
+    source_keys = ("id", "repo", "tag", "asset", "destination")
+    if [
+        {key: tool[key] for key in source_keys} for tool in lock["tools"]
+    ] != declared_tools:
+        fail("Tool release declarations changed; run lock first.")
+    with build_directory(preserve=prepare_only) as directory:
+        context = Path(directory)
+        for name in ["Containerfile", "unpack.py", "entrypoint.sh"]:
+            shutil.copy2(ROOT / name, context / name)
+        for name in ["inner", "tools", "x11"]:
+            shutil.copytree(
+                ROOT / name,
+                context / name,
+                ignore=shutil.ignore_patterns("node_modules", "__pycache__"),
+            )
+        (context / "zed").mkdir()
+        settings = merge_settings(
+            read_json(ZED_CONFIG / "settings.json"),
+            read_json(ROOT / "settings.container.json"),
+        )
+        # Plugins are installed from verified archives, never fetched at runtime.
+        for extension in extensions:
+            settings.setdefault("auto_update_extensions", {})[extension] = False
+        settings["auto_install_extensions"] = {
+            name: False for name in settings.get("auto_install_extensions", {})
+        }
+        write_json(context / "zed/settings.json", settings)
+        for name in ["keymap.json", "tasks.json"]:
+            if (ZED_CONFIG / name).exists():
+                shutil.copy2(ZED_CONFIG / name, context / "zed" / name)
+        if (ZED_CONFIG / "snippets").is_dir():
+            shutil.copytree(ZED_CONFIG / "snippets", context / "zed/snippets")
+        ARTIFACTS.mkdir(parents=True, exist_ok=True)
+        (context / "artifacts").mkdir()
+        shutil.copy2(
+            ROOT / "artifacts.lock.json", context / "artifacts/artifacts.lock.json"
+        )
+        for item in [lock["zed"], *lock["extensions"], *lock["tools"]]:
+            source = ARTIFACTS / item["file"]
+            if not source.exists() and "url" in item:
+                fetch(item["url"], source)
+            if sha(source) != item["sha256"]:
+                fail(f"Hash mismatch: {source}")
+            os.link(source, context / "artifacts" / source.name)
+        command = [
+            "podman",
+            "build",
+            "--pull=always",
+            "--no-cache",
+            "--build-arg",
+            "BASE_IMAGE=" + config["base_image"],
+        ]
+        proxy_variables = (
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "FTP_PROXY",
+            "ALL_PROXY",
+            "NO_PROXY",
+            "RSYNC_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "ftp_proxy",
+            "all_proxy",
+            "no_proxy",
+            "rsync_proxy",
+            "NPM_PROXY",
+        )
+        # Podman reads the values from its environment when given only the names.
+        for name in proxy_variables:
+            if name in os.environ:
+                command.extend(["--build-arg", name])
+        command.extend(["-t", config["image"], str(context)])
+        if prepare_only:
+            print(json.dumps({"context": str(context), "command": command}))
+        else:
+            run(command)
+
+
+def project_path(value):
+    project = Path(value).expanduser().resolve(strict=True)
+    if not project.is_dir():
+        fail("Choose a project directory")
+    home = Path.home().resolve()
+    if home.is_relative_to(project):
+        fail("Refusing to expose your entire home. Choose a project directory.")
+    protected = [ROOT, ZED_CONFIG, home / ".ssh", home / ".gnupg"]
+    if os.environ.get("GNUPGHOME"):
+        protected.append(Path(os.environ["GNUPGHOME"]).expanduser().absolute())
+    for directory in protected:
+        # Protect both the usual location and its target if it is a symlink.
+        for path in {directory, directory.resolve()}:
+            if path.is_relative_to(project) or project.is_relative_to(path):
+                fail(
+                    f"Refusing to expose protected directory {directory} or its contents. Choose a project directory."
+                )
+    if any(c in str(project) for c in [",", "\n", ":"]):
+        fail(
+            "Project paths containing comma, colon or newline are not supported by this launcher."
+        )
+    return project
+
+
+def identity(project):
+    return "zed-box-" + hashlib.sha256(str(project).encode()).hexdigest()[:16]
+
+
+def container_project_path(project):
+    return str(Path("/workspace") / project.name)
+
+
+def host_check():
+    if os.getuid() == 0:
+        fail("Run as your normal user, never sudo.")
+    info = json.loads(output(["podman", "info", "--format=json"]))
+    if not info["host"]["security"]["rootless"]:
+        fail("The outer Podman must be rootless.")
+    for filename in ["/etc/subuid", "/etc/subgid"]:
+        users = {str(os.getuid()), output(["id", "-un"])}
+        count = sum(
+            int(line.split(":")[2])
+            for line in Path(filename).read_text().splitlines()
+            if line.split(":")[0] in users
+        )
+        if count < 65536:
+            fail(f"Need at least 65536 subordinate IDs in {filename}")
+    if not Path("/dev/fuse").exists():
+        fail(
+            "/dev/fuse is unavailable; load the host fuse module (sudo modprobe fuse)."
+        )
+    if not Path("/dev/net/tun").exists():
+        fail(
+            "/dev/net/tun is unavailable; load the host tun module (sudo modprobe tun)."
+        )
+
+
+def base_command(config, project, name):
+    destination = container_project_path(project)
+    args = [
+        "podman",
+        "run",
+        "--rm",
+        "--name",
+        name,
+        "--init",
+        "--pull=never",
+        "--runtime=crun",
+        "--hostname=" + CONTAINER_HOSTNAME,
+        "--userns=keep-id:uid=1000,gid=1000",
+        "--user=1000:1000",
+        "--group-add=keep-groups",
+        "--read-only",
+        "--security-opt=unmask=/proc/*",
+        "--security-opt=seccomp=" + str(ROOT / "seccomp-nesting.json"),
+        "--device=/dev/fuse",
+        "--device=/dev/net/tun",
+        "--network=slirp4netns:allow_host_loopback=false",
+        "--hosts-file=none",
+        "--http-proxy=" + str(config.get("forward_proxy", False)).lower(),
+        "--mount=type=tmpfs,destination=/home/zed,tmpfs-mode=0700,tmpfs-size=4294967296,U=true,exec,nosuid,nodev",
+        "--tmpfs=/tmp:rw,exec,nosuid,nodev,mode=1777,size=4g",
+        "--shm-size=512m",
+        "--workdir",
+        destination,
+        "--volume",
+        name + "-storage:/var/lib/zed-containers:U",
+        "--mount",
+        f"type=bind,src={project},dst={destination},rw",
+    ]
+    # SELinux labeling can block nested mounts; the host determines LSM policy.
+    if Path("/sys/fs/selinux/enforce").exists():
+        args.append("--security-opt=label=disable")
+    for mapping in config["publish"]:
+        if not re.fullmatch(r"127\.0\.0\.1:\d{1,5}:\d{1,5}(?:/(?:tcp|udp))?", mapping):
+            fail(
+                "Published ports must explicitly bind 127.0.0.1, e.g. 127.0.0.1:3000:3000"
+            )
+        args.extend(["--publish", mapping])
+    return args
+
+
+def display_mode(config):
+    mode = config["display"]
+    if mode == "auto":
+        mode = (
+            "wayland"
+            if os.environ.get("WAYLAND_DISPLAY")
+            or os.environ.get("XDG_SESSION_TYPE") == "wayland"
+            else "xephyr"
+        )
+    if mode not in {"wayland", "xephyr"}:
+        fail(
+            "display must be auto, wayland or xephyr; direct host X11 sharing is intentionally unsupported."
+        )
+    return mode
+
+
+def wayland_socket():
+    display = Path(os.environ.get("WAYLAND_DISPLAY") or "wayland-0")
+    if display.is_absolute():
+        socket = display
+    else:
+        runtime = os.environ.get("XDG_RUNTIME_DIR")
+        if not runtime or not Path(runtime).is_absolute():
+            fail(
+                "Wayland requires an absolute XDG_RUNTIME_DIR for a relative WAYLAND_DISPLAY."
+            )
+        socket = Path(runtime) / display
+    if any(c in str(socket) for c in [",", "\n"]):
+        fail("Unsupported character in Wayland socket path")
+    if not socket.is_socket():
+        fail(
+            f"Wayland socket is unavailable: {socket}. Run from a terminal in your graphical session."
+        )
+    return socket
+
+
+def display_check(config):
+    mode = display_mode(config)
+    if mode == "wayland":
+        wayland_socket()
+    else:
+        for command in ["Xephyr", "xauth", "xdpyinfo"]:
+            if not shutil.which(command):
+                fail(
+                    "X11 isolation requires: sudo apt install xserver-xephyr xauth x11-utils"
+                )
+    return mode
+
+
+def render_options(config, mode):
+    devices = (
+        sorted(Path("/dev/dri").glob("renderD*"))
+        if config.get("gpu") and mode == "wayland"
+        else []
+    )
+    if devices:
+        return ["--device=" + str(device) for device in devices]
+    return ["--env=ZED_BOX_SOFTWARE_RENDERING=1"]
+
+
+def create_xauthority(cookie, display):
+    token = secrets.token_hex(16)
+    run(["xauth", "-f", cookie, "add", display, ".", token])
+    # Exact hostnames also work with X11 clients that do not accept FamilyWild.
+    run(
+        [
+            "xauth",
+            "-f",
+            cookie,
+            "add",
+            CONTAINER_HOSTNAME + "/unix" + display,
+            ".",
+            token,
+        ]
+    )
+
+
+@contextlib.contextmanager
+def display_options(config):
+    mode = display_check(config)
+    if mode == "wayland":
+        socket = wayland_socket()
+        # Mount outside XDG_RUNTIME_DIR: OCI-created parent directories would
+        # otherwise be root-owned, which breaks inner rootless Podman.
+        yield [
+            "--mount",
+            f"type=bind,src={socket},dst=/tmp/zed-wayland",
+            "--env=WAYLAND_DISPLAY=/tmp/zed-wayland",
+            "--env=XDG_SESSION_TYPE=wayland",
+        ]
+        return
+    with tempfile.TemporaryDirectory(prefix="zed-display-") as directory:
+        cookie = Path(directory) / "Xauthority"
+        cookie.touch(mode=0o600)
+        number = next(
+            n
+            for n in range(100, 200)
+            if not Path(f"/tmp/.X11-unix/X{n}").exists()
+            and not Path(f"/tmp/.X{n}-lock").exists()
+        )
+        display = ":" + str(number)
+        socket = Path(f"/tmp/.X11-unix/X{number}")
+        create_xauthority(cookie, display)
+        log = (Path(directory) / "Xephyr.log").open("w+")
+        read_fd, write_fd = os.pipe()
+        process = None
+        try:
+            process = subprocess.Popen(
+                [
+                    "Xephyr",
+                    display,
+                    "-auth",
+                    str(cookie),
+                    "-nolisten",
+                    "tcp",
+                    "-noreset",
+                    "-displayfd",
+                    str(write_fd),
+                    "-screen",
+                    config["xephyr_screen"],
+                    "-resizeable",
+                    "-title",
+                    "Zed — isolated display",
+                ],
+                stdout=log,
+                stderr=log,
+                pass_fds=(write_fd,),
+            )
+            os.close(write_fd)
+            write_fd = -1
+            # Xephyr writes its display number once its listeners are ready.
+            # Block on that notification, with a deadline only for failed startup.
+            if not select.select([read_fd], [], [], 10)[0]:
+                fail("Timed out waiting for Xephyr readiness notification")
+            announced = os.read(read_fd, 64).strip()
+            if announced != str(number).encode() or process.poll() is not None:
+                log.seek(0)
+                fail("Xephyr failed before becoming ready: " + log.read())
+            if not socket.is_socket():
+                fail(
+                    f"Xephyr announced readiness but its filesystem socket is missing: {socket}"
+                )
+            env = dict(os.environ, DISPLAY=display, XAUTHORITY=str(cookie))
+            if (
+                subprocess.run(
+                    ["xdpyinfo"],
+                    env=env,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=2,
+                ).returncode
+                != 0
+            ):
+                fail("Xephyr is ready but the authenticated connection check failed")
+            yield [
+                "--mount",
+                f"type=bind,src={socket},dst={socket},ro",
+                "--mount",
+                f"type=bind,src={cookie},dst=/tmp/zed.Xauthority,ro",
+                "--env=DISPLAY=" + display,
+                "--env=XAUTHORITY=/tmp/zed.Xauthority",
+                "--env=XDG_SESSION_TYPE=x11",
+                "--env=ZED_BOX_SOFTWARE_RENDERING=1",
+            ]
+        finally:
+            os.close(read_fd)
+            if write_fd != -1:
+                os.close(write_fd)
+            if process is not None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+            log.close()
+
+
+def launch(config, project, action):
+    name = identity(project)
+    if action == "stop":
+        run(["podman", "stop", name])
+        return
+    host_check()
+    if subprocess.run(["podman", "image", "exists", config["image"]]).returncode != 0:
+        fail("Editor image is not built. Run zed build.")
+    exists = subprocess.run(["podman", "container", "exists", name]).returncode == 0
+    if exists:
+        if action == "shell":
+            run(["podman", "exec", "-it", name, "/bin/bash"])
+        elif action == "run":
+            # Existing containers may still use the previous /workspace mount.
+            destination = output(
+                ["podman", "inspect", "--format", "{{.Config.WorkingDir}}", name]
+            )
+            run(["podman", "exec", name, "zed", "--new", destination])
+        return
+    # Serialize storage use; a second concurrent launcher must not share a graphroot.
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
+    with (runtime / (name + ".lock")).open("w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            fail("This project is starting or stopping. Retry in a moment.")
+        args = base_command(config, project, name)
+        if action == "shell":
+            args.append("-it")
+            run(args + [config["image"], "--shell"])
+            return
+        with display_options(config) as display:
+            args.extend(render_options(config, display_mode(config)))
+            run(args + display + [config["image"], container_project_path(project)])
+
+
+def main():
+    commands = {"lock", "build", "run", "shell", "stop", "doctor"}
+    arguments = sys.argv[1:]
+    if not arguments or (
+        arguments[0] not in commands and not arguments[0].startswith("-")
+    ):
+        arguments.insert(0, "run")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", choices=sorted(commands))
+    parser.add_argument("project", nargs="?", default=".")
+    parser.add_argument(
+        "--release", default="latest", help="Zed tag for the lock command"
+    )
+    parser.add_argument(
+        "--prepare-only",
+        action="store_true",
+        help="Prepare a verified build context and print the Podman command",
+    )
+    args = parser.parse_args(arguments)
+    config = read_json(ROOT / "container.json")
+    if args.command == "lock":
+        lock_artifacts(args.release)
+    elif args.command == "build":
+        build(config, args.prepare_only)
+    elif args.command == "doctor":
+        host_check()
+        print(
+            "Host rootless Podman, subordinate IDs, FUSE and TUN prerequisites passed."
+        )
+        print(f"Display prerequisites passed: {display_check(config)}.")
+    else:
+        launch(config, project_path(args.project), args.command)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (
+        RuntimeError,
+        OSError,
+        ValueError,
+        KeyError,
+        StopIteration,
+        tarfile.TarError,
+        subprocess.CalledProcessError,
+    ) as exc:
+        print(f"zed: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)

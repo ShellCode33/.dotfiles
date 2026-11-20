@@ -1,0 +1,10 @@
+{
+    "name": "zed-language-tools",
+    "private": true,
+    "version": "1.0.0",
+    "dependencies": {
+        "@vtsls/language-server": "0.2.9",
+        "@microsoft/compose-language-service": "0.4.0",
+        "vscode-langservers-extracted": "4.10.0"
+    }
+}

@@ -1,0 +1,93 @@
+{
+    "theme": "Gruvbox Dark Hard",
+    "icon_theme": "Zed (Default)",
+    "vim_mode": true,
+    "relative_line_numbers": "enabled",
+    "buffer_font_family": "DejaVu Sans Mono",
+    "buffer_font_size": 14,
+    "use_podman": true,
+    "dev_container_use_buildkit": false,
+    "auto_install_extensions": {
+        "html": false,
+        "lua": true,
+        "neocmake": true,
+        "dockerfile": true,
+        "php": true
+    },
+    "auto_update_extensions": {
+        "lua": false,
+        "neocmake": false,
+        "dockerfile": false,
+        "php": false
+    },
+    "suggest_extensions": false,
+    "telemetry": {
+        "diagnostics": false,
+        "metrics": false
+    },
+    "disable_ai": false,
+    "language_servers": [],
+    "format_on_save": "off",
+    "prettier": {
+        "allowed": false
+    },
+    "languages": {
+        "Python": {
+            "language_servers": ["pyright", "ruff"]
+        },
+        "Rust": {
+            "language_servers": ["rust-analyzer"]
+        },
+        "C": {
+            "language_servers": ["clangd"]
+        },
+        "C++": {
+            "language_servers": ["clangd"]
+        },
+        "CMake": {
+            "language_servers": ["cmake"]
+        },
+        "Dockerfile": {
+            "language_servers": ["dockerfile-language-server"]
+        },
+        "Docker Compose": {
+            "language_servers": ["docker-language-server"]
+        },
+        "TypeScript": {
+            "language_servers": ["vtsls", "eslint"]
+        },
+        "TSX": {
+            "language_servers": ["vtsls", "eslint"]
+        },
+        "JavaScript": {
+            "language_servers": ["vtsls", "eslint"]
+        },
+        "YAML": {
+            "language_servers": ["yaml-language-server"]
+        },
+        "JSON": {
+            "language_servers": ["json-language-server"]
+        },
+        "JSONC": {
+            "language_servers": ["json-language-server"]
+        },
+        "Markdown": {
+            "language_servers": ["marksman"]
+        },
+        "PHP": {
+            "language_servers": ["phpactor"]
+        },
+        "Lua": {
+            "language_servers": ["lua-language-server"]
+        },
+        "Shell Script": {
+            "language_servers": ["bash-language-server"]
+        }
+    },
+    "project_panel": {
+        "dock": "left"
+    },
+    "agent": {
+        "dock": "right"
+    }
+}

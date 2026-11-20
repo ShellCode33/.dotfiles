@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/bin/php /opt/zed-tools/lib/phpactor.phar "$@"

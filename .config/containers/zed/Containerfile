@@ -1,0 +1,69 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+ARG ALL_PROXY
+ARG all_proxy
+ARG RSYNC_PROXY
+ARG rsync_proxy
+# Use the base image's live Arch mirrors; keep package signatures enabled.
+# The launcher rebuilds without cached layers so this full upgrade always runs.
+RUN pacman -Syu --noconfirm --needed \
+    ca-certificates curl git openssh bash python nodejs npm php php-sqlite \
+    base-devel cmake rust \
+    bash-language-server shellcheck pyright ruff rust-analyzer clang \
+    dockerfile-language-server yaml-language-server vscode-json-languageserver \
+    marksman lua-language-server prettier \
+    podman crun shadow libcap fuse-overlayfs passt dbus busybox \
+    alsa-lib at-spi2-core fontconfig freetype2 glib2 gtk3 nss vulkan-icd-loader \
+    wayland libx11 libxcb libxkbcommon libxkbcommon-x11 libxcursor libxi \
+    libxrandr libxrender mesa vulkan-swrast vulkan-intel vulkan-radeon \
+    ttf-dejavu ncurses icu \
+ && pacman -S --noconfirm shadow \
+ && pacman -Scc --noconfirm \
+ && rm -rf /var/cache/pacman/pkg/*
+# Reinstalling shadow above restores capabilities missing from base-image tarballs.
+# PHP ships optional modules disabled; enable the installed modules needed by tools.
+RUN mkdir -p /etc/php/conf.d \
+ && for module in curl mbstring iconv zip dom xml xmlreader xmlwriter simplexml sqlite3 pdo_sqlite; do \
+      if test -f "/usr/lib/php/modules/$module.so" && ! php -m | grep -Fxiq "$module"; then \
+        printf 'extension=%s\n' "$module" >> /etc/php/conf.d/zed-box.ini; \
+      fi; \
+    done
+RUN groupadd -g 1000 zed && useradd -m -u 1000 -g 1000 -s /bin/bash zed \
+ && printf 'zed:1:999\nzed:1001:64536\n' > /etc/subuid \
+ && printf 'zed:1:999\nzed:1001:64536\n' > /etc/subgid \
+ && mkdir -p /var/lib/zed-containers /opt/zed-extensions /etc/zed-box/zed \
+ && chown 1000:1000 /var/lib/zed-containers \
+ && getcap /usr/bin/newuidmap | grep -q cap_setuid=ep \
+ && getcap /usr/bin/newgidmap | grep -q cap_setgid=ep
+COPY tools/ /opt/zed-tools/
+ARG NPM_PROXY
+RUN HTTP_PROXY="${NPM_PROXY:-$HTTP_PROXY}" HTTPS_PROXY="${NPM_PROXY:-$HTTPS_PROXY}" \
+    http_proxy="${NPM_PROXY:-$http_proxy}" https_proxy="${NPM_PROXY:-$https_proxy}" \
+    npm ci --prefix /opt/zed-tools --ignore-scripts --no-audit --no-fund \
+ && npm cache clean --force
+COPY artifacts/ /tmp/artifacts/
+COPY unpack.py /tmp/unpack.py
+RUN python3 /tmp/unpack.py && rm -rf /tmp/artifacts /tmp/unpack.py
+# Match Arch's Compose definitions with its keyboard-handling libraries.
+RUN rm /opt/zed.app/lib/libxkbcommon.so.0 \
+       /opt/zed.app/lib/libxkbcommon-x11.so.0
+COPY zed/ /etc/zed-box/zed/
+COPY inner/ /etc/containers/
+COPY x11/ /usr/local/lib/zed-box/x11/
+COPY entrypoint.sh /usr/local/lib/zed-box/
+RUN cc -O2 -Wall -Wextra -Werror -o /usr/local/lib/zed-box/x11/session \
+      /usr/local/lib/zed-box/x11/session.c -lX11 -lXrandr \
+ && chmod 755 /usr/local/lib/zed-box/*.sh \
+ && ln -s /opt/zed.app/bin/zed /usr/local/bin/zed \
+ && ldd /opt/zed.app/libexec/zed-editor > /tmp/zed-libraries \
+ && ! grep 'not found' /tmp/zed-libraries \
+ && rm /tmp/zed-libraries
+ENV HOME=/home/zed USER=zed LOGNAME=zed \
+    XDG_CONFIG_HOME=/etc/zed-box XDG_DATA_HOME=/home/zed/.local/share \
+    XDG_CACHE_HOME=/home/zed/.cache XDG_RUNTIME_DIR=/tmp/run-1000 \
+    PATH=/opt/zed-tools/bin:/opt/zed-tools/node_modules/.bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin \
+    SHELL=/bin/bash
+WORKDIR /workspace
+USER 1000:1000
+ENTRYPOINT ["/usr/local/lib/zed-box/entrypoint.sh"]
