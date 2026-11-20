@@ -1,0 +1,254 @@
+#!/usr/bin/env python3
+"""Run Neovim in a rootless Podman container."""
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from urllib.parse import urlsplit
+
+HOME = Path.home().resolve()
+CHECKOUT = Path(__file__).resolve().parents[2]
+CONFIG = CHECKOUT / ".config/nvim"
+CONTAINER = CHECKOUT / ".config/containers/nvim"
+IMAGE = "localhost/nvim:local"
+WORKSPACE = Path("/workspace")
+PROJECT_LABEL = "io.dotfiles.nvim.project"
+BUILD_FILES = ("Containerfile", "entrypoint.sh", "prewarm.lua", "runtime.lua")
+
+
+def podman(*args, **kwargs):
+    return subprocess.run(["podman", *args], check=True, **kwargs)
+
+
+def check_sources():
+    for path in (
+        CONFIG / "init.lua",
+        CONFIG / "lazy-lock.json",
+        *(CONTAINER / name for name in BUILD_FILES),
+    ):
+        if not path.is_file():
+            raise FileNotFoundError(f"Required file is missing: {path}")
+
+
+def check_host():
+    if os.getuid() == 0:
+        raise RuntimeError("Run as your normal user.")
+    if not shutil.which("podman"):
+        raise RuntimeError("Install Podman first.")
+    info = podman(
+        "info", "--format", "{{.Host.Security.Rootless}}", stdout=subprocess.PIPE
+    )
+    if info.stdout.strip() != b"true":
+        raise RuntimeError("Podman must be running rootless.")
+
+
+def image_exists():
+    result = subprocess.run(["podman", "image", "exists", IMAGE], check=False)
+    if result.returncode not in (0, 1):
+        result.check_returncode()
+    return result.returncode == 0
+
+
+def proxy_network():
+    # A proxy on the host's loopback is otherwise unreachable from the container.
+    ports = set()
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+        value = os.environ.get(name, "")
+        proxy = urlsplit(value if "://" in value else f"//{value}")
+        if proxy.hostname in {"localhost", "127.0.0.1", "::1"}:
+            ports.add(proxy.port or (443 if proxy.scheme == "https" else 80))
+    if ports:
+        return ["--network=pasta:" + ",".join(f"-T,{port}" for port in sorted(ports))]
+    return []
+
+
+def build(prepare_only):
+    check_sources()
+    if not prepare_only:
+        check_host()
+    context = Path(tempfile.mkdtemp(prefix="nvim-build-"))
+    keep_context = False
+    try:
+        for filename in BUILD_FILES:
+            shutil.copy2(CONTAINER / filename, context)
+        # LazyVim writes this local metadata itself. Include custom spell files.
+        shutil.copytree(
+            CONFIG,
+            context / "nvim",
+            symlinks=True,
+            ignore=shutil.ignore_patterns("lazyvim.json"),
+        )
+        args = ["build", "--pull=always", *proxy_network(), "-t", IMAGE, str(context)]
+        if prepare_only:
+            print(json.dumps({"context": str(context), "command": ["podman", *args]}))
+            keep_context = True
+        else:
+            podman(*args)
+    finally:
+        if not keep_context:
+            shutil.rmtree(context)
+
+
+def project_path(explicit, editor_args):
+    cwd = Path.cwd()
+    if explicit is not None:
+        project = Path(explicit).expanduser().resolve(strict=True)
+    else:
+        project = cwd
+        # A file opened from outside its directory needs its own bind mount.
+        if len(editor_args) == 1 and not editor_args[0].startswith(("-", "+")):
+            target = Path(editor_args[0]).expanduser().resolve()
+            if target.is_dir():
+                project = target
+                editor_args[0] = str(target)
+            elif not target.is_relative_to(cwd) or cwd == HOME:
+                project = target.parent
+                editor_args[0] = str(target)
+        if project == HOME and all(arg.startswith(("-", "+")) for arg in editor_args):
+            return None
+
+    if not project.is_dir():
+        raise RuntimeError(f"Project directory does not exist: {project}")
+    if HOME.is_relative_to(project):
+        raise RuntimeError("Choose a project directory smaller than your home.")
+    for directory in (HOME / ".ssh", HOME / ".gnupg"):
+        protected = directory.resolve()
+        if project.is_relative_to(protected) or protected.is_relative_to(project):
+            raise RuntimeError(f"Refusing to mount credential directory {directory}.")
+    if ":" in str(project):
+        raise RuntimeError("Podman volume paths cannot contain a colon.")
+    return project
+
+
+def identity(project):
+    if project is None:
+        return "nvim-empty"
+    return "nvim-" + hashlib.sha256(os.fsencode(project)).hexdigest()[:16]
+
+
+def editor_path(argument, project):
+    if project is not None and argument.startswith("/"):
+        path = Path(os.path.normpath(argument))
+        if path.is_relative_to(project):
+            return str(WORKSPACE / path.relative_to(project))
+    return argument
+
+
+def launch(project, command):
+    if not image_exists():
+        raise RuntimeError("Editor image is missing. Run `nvim build` first.")
+    name = identity(project)
+    args = [
+        "podman",
+        "run",
+        "--rm",
+        "--init",
+        "--pull=never",
+        "--userns=keep-id:uid=1000,gid=1000",
+        "--user=1000:1000",
+        "--read-only",
+        "--cap-drop=all",
+        "--security-opt=no-new-privileges",
+        *proxy_network(),
+        "--env=TERM",
+        "--env=COLORTERM",
+        "--interactive",
+        "--label",
+        f"{PROJECT_LABEL}={name}",
+        "--volume",
+        f"{name}:/home/nvim:U",
+    ]
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        args.append("--tty")
+    if project is not None:
+        args.extend(("--volume", f"{project}:{WORKSPACE}"))
+        if Path("/sys/fs/selinux/enforce").exists():
+            args.append("--security-opt=label=disable")
+    os.execvp("podman", [*args, IMAGE, *command])
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="Other arguments are passed to Neovim. Use `nvim run -- --help` "
+        "for Neovim's own help, or `nvim run --project DIR -- [ARGS]` to choose a mount.",
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("doctor", help="check configuration and rootless Podman")
+    build_parser = commands.add_parser(
+        "build", help="build the Arch Linux editor image"
+    )
+    build_parser.add_argument("--prepare-only", action="store_true")
+    for name, help_text in (
+        ("shell", "open a shell in the editor image"),
+        ("stop", "stop all editor containers for a project"),
+    ):
+        commands.add_parser(name, help=help_text).add_argument("project", nargs="?")
+    run_parser = commands.add_parser(
+        "run", help="open Neovim for the current directory"
+    )
+    run_parser.add_argument("--project", metavar="DIR")
+
+    editor_args = sys.argv[1:]
+    explicit_project = None
+    if editor_args[:1] == ["run"]:
+        editor_args = editor_args[1:]
+        boundary = editor_args.index("--") if "--" in editor_args else len(editor_args)
+        args, remaining = run_parser.parse_known_args(editor_args[:boundary])
+        explicit_project = args.project
+        editor_args = remaining + editor_args[boundary + 1 :]
+    elif editor_args and editor_args[0] in {
+        "-h",
+        "--help",
+        "build",
+        "doctor",
+        "shell",
+        "stop",
+    }:
+        args = parser.parse_args(editor_args)
+        if args.command == "build":
+            build(args.prepare_only)
+            return
+        check_host()
+        if args.command == "doctor":
+            check_sources()
+            print("Configuration and rootless Podman checks passed.")
+            print(
+                f"{IMAGE} is available."
+                if image_exists()
+                else "Run `nvim build` to create the editor image."
+            )
+            return
+        project = project_path(args.project, [])
+        if args.command == "shell":
+            launch(project, ["/bin/bash"])
+        else:
+            podman(
+                "stop",
+                "--ignore",
+                "--filter",
+                f"label={PROJECT_LABEL}={identity(project)}",
+            )
+        return
+
+    project = project_path(explicit_project, editor_args)
+    check_host()
+    launch(project, ["nvim", *(editor_path(arg, project) for arg in editor_args)])
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except subprocess.CalledProcessError as error:
+        sys.exit(error.returncode)
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"nvim: {error}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)
