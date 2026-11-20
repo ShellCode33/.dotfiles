@@ -1,0 +1,36 @@
+FROM docker.io/library/archlinux:base AS base
+
+RUN pacman -Syu --noconfirm --needed \
+    neovim git curl ca-certificates fd ripgrep fzf unzip \
+    gcc make cmake clang gdb rust rust-analyzer tree-sitter-cli \
+    nodejs npm python python-pip python-pynvim python-debugpy \
+ && pacman -Scc --noconfirm
+
+RUN groupadd -g 1000 nvim \
+ && useradd -m -u 1000 -g 1000 -s /bin/bash nvim
+
+COPY nvim/ /usr/local/share/nvim-config/
+COPY runtime.lua /usr/local/share/nvim-config/lua/plugins/container.lua
+
+ENV HOME=/home/nvim USER=nvim LOGNAME=nvim SHELL=/bin/bash \
+    XDG_CONFIG_HOME=/tmp/nvim-config EDITOR=nvim
+WORKDIR /workspace
+
+FROM base AS prewarm
+COPY prewarm.lua /usr/local/share/nvim-prewarm.lua
+USER 1000:1000
+RUN seed="$HOME/.local/share/nvim" \
+ && mkdir -p "$XDG_CONFIG_HOME/nvim" \
+ && cp -R /usr/local/share/nvim-config/. "$XDG_CONFIG_HOME/nvim/" \
+ && nvim --headless -u NONE -i NONE --cmd 'let g:nvim_image_bootstrap = 1' \
+    -c 'luafile /usr/local/share/nvim-prewarm.lua' -c 'qa!' \
+ && nvim --headless -i NONE --cmd 'let g:nvim_image_prewarm = 1' \
+    -c 'luafile /usr/local/share/nvim-prewarm.lua' -c 'qa!' \
+ && cp /proc/sys/kernel/random/uuid "$seed/.image-seed"
+
+FROM base
+COPY --from=prewarm --chown=1000:1000 /home/nvim/.local/share/nvim/ /usr/local/share/nvim-data/
+COPY entrypoint.sh /usr/local/bin/nvim-entrypoint
+USER 1000:1000
+ENTRYPOINT ["/usr/local/bin/nvim-entrypoint"]
+CMD ["nvim"]
