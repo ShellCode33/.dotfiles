@@ -30,6 +30,12 @@ if [ -f "$seed/.image-seed" ]; then
     ) 9>"${data%/*}/.nvim-seed.lock"
 fi
 
+# LuaLS otherwise puts its cache and generated definitions beside its binary.
+lua_ls_state="${XDG_STATE_HOME:-$HOME/.local/state}/nvim/lua-ls"
+export LLS_LOG_PATH="${LLS_LOG_PATH:-$lua_ls_state/log}"
+export LLS_META_PATH="${LLS_META_PATH:-$lua_ls_state/meta}"
+mkdir -p -- "$LLS_LOG_PATH" "$LLS_META_PATH"
+
 if [ -n "${TERM:-}" ] && ! infocmp -x "$TERM" >/dev/null 2>&1; then
     export TERM=xterm-256color
 fi
