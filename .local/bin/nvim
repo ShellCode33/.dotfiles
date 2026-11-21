@@ -18,8 +18,23 @@ CONFIG = CHECKOUT / ".config/nvim"
 CONTAINER = CHECKOUT / ".config/containers/nvim"
 IMAGE = "localhost/nvim:local"
 WORKSPACE = Path("/workspace")
+EXTRA_MOUNTS = Path("/mnt/nvim")
 PROJECT_LABEL = "io.dotfiles.nvim.project"
 BUILD_FILES = ("Containerfile", "entrypoint.sh", "prewarm.lua", "runtime.lua")
+OPTIONS_WITH_VALUES = {
+    "-c",
+    "-i",
+    "-q",
+    "-s",
+    "-t",
+    "-u",
+    "-w",
+    "-W",
+    "--cmd",
+    "--listen",
+    "--server",
+    "--startuptime",
+}
 
 
 def podman(*args, **kwargs):
@@ -95,35 +110,116 @@ def build(prepare_only):
             shutil.rmtree(context)
 
 
-def project_path(explicit, editor_args):
-    cwd = Path.cwd()
-    if explicit is not None:
-        project = Path(explicit).expanduser().resolve(strict=True)
-    else:
-        project = cwd
-        # A file opened from outside its directory needs its own bind mount.
-        if len(editor_args) == 1 and not editor_args[0].startswith(("-", "+")):
-            target = Path(editor_args[0]).expanduser().resolve()
-            if target.is_dir():
-                project = target
-                editor_args[0] = str(target)
-            elif not target.is_relative_to(cwd) or cwd == HOME:
-                project = target.parent
-                editor_args[0] = str(target)
-        if project == HOME and all(arg.startswith(("-", "+")) for arg in editor_args):
-            return None
+def check_mount_path(path):
+    for directory in (HOME / ".ssh", HOME / ".gnupg"):
+        protected = directory.resolve()
+        if path.is_relative_to(protected) or protected.is_relative_to(path):
+            raise RuntimeError(f"Refusing to mount credential directory {directory}.")
 
+
+def project_path(project):
     if not project.is_dir():
         raise RuntimeError(f"Project directory does not exist: {project}")
     if HOME.is_relative_to(project):
         raise RuntimeError("Choose a project directory smaller than your home.")
-    for directory in (HOME / ".ssh", HOME / ".gnupg"):
-        protected = directory.resolve()
-        if project.is_relative_to(protected) or protected.is_relative_to(project):
-            raise RuntimeError(f"Refusing to mount credential directory {directory}.")
+    check_mount_path(project)
     if ":" in str(project):
         raise RuntimeError("Podman volume paths cannot contain a colon.")
     return project
+
+
+def file_arguments(arguments):
+    tokens = iter(enumerate(arguments))
+    for index, argument in tokens:
+        if argument == "--":
+            yield from tokens
+            return
+        if argument in {"-l", "--remote-expr", "--remote-send", "--remote-ui"}:
+            return
+        if argument in OPTIONS_WITH_VALUES:
+            next(tokens, None)
+        elif argument == "-S":
+            # With no filename, -S sources Session.vim.
+            if index + 1 < len(arguments) and not arguments[index + 1].startswith("-"):
+                next(tokens)
+        elif not argument.startswith(("-", "+")) and argument:
+            yield index, argument
+
+
+def editor_mounts(explicit, arguments):
+    cwd = Path.cwd()
+    project = (
+        Path(explicit).expanduser().resolve(strict=True)
+        if explicit is not None
+        else None
+    )
+    targets = []
+    for index, argument in file_arguments(arguments):
+        requested = (project or cwd) / Path(argument).expanduser()
+        targets.append((index, requested, requested.resolve()))
+
+    if (
+        explicit is None
+        and cwd != HOME
+        and (
+            not targets
+            or any(
+                source.is_relative_to(cwd) and requested.parent.resolve() != HOME
+                for _, requested, source in targets
+            )
+        )
+    ):
+        project = cwd
+    if explicit is None and len(targets) == 1:
+        _, requested, source = targets[0]
+        if source.is_dir():
+            project = source
+        elif not source.exists() and not source.is_relative_to(cwd):
+            # A new file outside the working directory needs a writable parent.
+            if requested.parent.resolve() != HOME and source.parent != HOME:
+                project = source.parent
+    if project is not None:
+        project = project_path(project)
+
+    mounts = {}
+    file_mount = False
+    for index, requested, source in targets:
+        check_mount_path(source)
+        if (
+            project is not None
+            and source.is_relative_to(project)
+            and (source.is_dir() or requested.parent.resolve() != HOME)
+        ):
+            arguments[index] = str(WORKSPACE / source.relative_to(project))
+            continue
+        if not source.exists():
+            raise RuntimeError(
+                f"{requested} does not exist. Create it on the host first."
+            )
+        if source.is_dir():
+            project_path(source)
+        elif source.is_file():
+            file_mount = True
+        else:
+            raise RuntimeError(f"{requested} is not a regular file.")
+
+        name = requested.name
+        if ":" in str(source) or ":" in name:
+            raise RuntimeError("Podman volume paths cannot contain a colon.")
+        root = (
+            WORKSPACE
+            if project is None and len(targets) == 1
+            else EXTRA_MOUNTS / identity(source)
+        )
+        arguments[index] = str(mounts.setdefault(source, root / name))
+
+    if file_mount:
+        arguments[:0] = [
+            "-c",
+            "lua vim.opt.backupcopy = 'yes'; "
+            "vim.opt.backupdir = vim.fn.stdpath('state') .. '/backup//'",
+        ]
+    return project, mounts
 
 
 def identity(project):
@@ -132,18 +228,10 @@ def identity(project):
     return "nvim-" + hashlib.sha256(os.fsencode(project)).hexdigest()[:16]
 
 
-def editor_path(argument, project):
-    if project is not None and argument.startswith("/"):
-        path = Path(os.path.normpath(argument))
-        if path.is_relative_to(project):
-            return str(WORKSPACE / path.relative_to(project))
-    return argument
-
-
-def launch(project, command):
+def launch(project, command, *, mounts=None):
     if not image_exists():
         raise RuntimeError("Editor image is missing. Run `nvim build` first.")
-    name = identity(project)
+    name = identity(project if project is not None else next(iter(mounts or ()), None))
     args = [
         "podman",
         "run",
@@ -168,6 +256,9 @@ def launch(project, command):
         args.append("--tty")
     if project is not None:
         args.extend(("--volume", f"{project}:{WORKSPACE}"))
+    for source, destination in (mounts or {}).items():
+        args.extend(("--volume", f"{source}:{destination}:rw"))
+    if mounts or project is not None:
         if Path("/sys/fs/selinux/enforce").exists():
             args.append("--security-opt=label=disable")
     os.execvp("podman", [*args, IMAGE, *command])
@@ -225,7 +316,12 @@ def main():
                 else "Run `nvim build` to create the editor image."
             )
             return
-        project = project_path(args.project, [])
+        path = (
+            Path(args.project).expanduser().resolve(strict=True)
+            if args.project
+            else Path.cwd()
+        )
+        project = None if args.project is None and path == HOME else project_path(path)
         if args.command == "shell":
             launch(project, ["/bin/bash"])
         else:
@@ -237,9 +333,9 @@ def main():
             )
         return
 
-    project = project_path(explicit_project, editor_args)
+    project, mounts = editor_mounts(explicit_project, editor_args)
     check_host()
-    launch(project, ["nvim", *(editor_path(arg, project) for arg in editor_args)])
+    launch(project, ["nvim", *editor_args], mounts=mounts)
 
 
 if __name__ == "__main__":
