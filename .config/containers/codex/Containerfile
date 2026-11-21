@@ -1,0 +1,11 @@
+FROM localhost/nvim:local
+
+USER 0:0
+RUN pacman -Syu --noconfirm --needed openai-codex openssh \
+ && pacman -Scc --noconfirm
+
+COPY entrypoint.sh /usr/local/bin/codex-entrypoint
+ENV CODEX_HOME=/home/nvim/.codex XDG_RUNTIME_DIR=/tmp/codex-runtime
+USER 1000:1000
+ENTRYPOINT ["/usr/local/bin/codex-entrypoint"]
+CMD ["/usr/bin/codex"]

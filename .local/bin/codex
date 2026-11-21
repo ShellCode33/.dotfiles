@@ -1,0 +1,278 @@
+#!/usr/bin/env python3
+"""Run Codex CLI with the rootless Neovim toolchain."""
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from urllib.parse import urlsplit
+
+CONTEXT = Path(__file__).resolve().parents[2] / ".config/containers/codex"
+BASE_IMAGE = "localhost/nvim:local"
+IMAGE = "localhost/codex:local"
+PROJECT_LABEL = "io.dotfiles.codex.project"
+WORKSPACE = Path("/workspace")
+EXTRA_MOUNTS = Path("/mnt/codex")
+
+
+def podman(*args, **kwargs):
+    return subprocess.run(["podman", *args], check=True, **kwargs)
+
+
+def check_host():
+    if os.getuid() == 0:
+        raise RuntimeError("Run as your normal user.")
+    if not shutil.which("podman"):
+        raise RuntimeError("Install Podman first.")
+    info = podman(
+        "info", "--format", "{{.Host.Security.Rootless}}", stdout=subprocess.PIPE
+    )
+    if info.stdout.strip() != b"true":
+        raise RuntimeError("Podman must be running rootless.")
+
+
+def image_exists(image):
+    result = subprocess.run(["podman", "image", "exists", image], check=False)
+    if result.returncode not in (0, 1):
+        result.check_returncode()
+    return result.returncode == 0
+
+
+def proxy_network():
+    ports = set()
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+        value = os.environ.get(name, "")
+        proxy = urlsplit(value if "://" in value else f"//{value}")
+        if proxy.hostname in {"localhost", "127.0.0.1", "::1"}:
+            ports.add(proxy.port or (443 if proxy.scheme == "https" else 80))
+    if ports:
+        return ["--network=pasta:" + ",".join(f"-T,{port}" for port in sorted(ports))]
+    return []
+
+
+def check_sources():
+    for name in ("Containerfile", "entrypoint.sh"):
+        if not (CONTEXT / name).is_file():
+            raise FileNotFoundError(f"Required file is missing: {CONTEXT / name}")
+
+
+def build(prepare_only):
+    check_sources()
+    command = [
+        "build",
+        "--pull=never",
+        "--layers=false",
+        *proxy_network(),
+        "-t",
+        IMAGE,
+        str(CONTEXT),
+    ]
+    if prepare_only:
+        print(json.dumps({"context": str(CONTEXT), "command": ["podman", *command]}))
+        return
+
+    check_host()
+    if not image_exists(BASE_IMAGE):
+        subprocess.run([Path(__file__).with_name("nvim"), "build"], check=True)
+    podman(*command)
+
+
+def project_path(explicit):
+    home = Path.home().resolve()
+    project = (
+        Path(explicit).expanduser().resolve(strict=True) if explicit else Path.cwd()
+    )
+    if explicit is None and project == home:
+        return None
+    if not project.is_dir():
+        raise RuntimeError(f"Project directory does not exist: {project}")
+    if home.is_relative_to(project):
+        raise RuntimeError("Choose a project directory smaller than your home.")
+    for directory in (home / ".codex", home / ".ssh", home / ".gnupg"):
+        protected = directory.resolve()
+        if project.is_relative_to(protected) or protected.is_relative_to(project):
+            raise RuntimeError(f"Refusing to mount credential directory {directory}.")
+    if ":" in str(project):
+        raise RuntimeError("Podman volume paths cannot contain a colon.")
+    return project
+
+
+def identity(project):
+    if project is None:
+        return "codex-empty"
+    return "codex-" + hashlib.sha256(os.fsencode(project)).hexdigest()[:16]
+
+
+def run_arguments(arguments):
+    use_run_separator = arguments[:1] == ["run"]
+    if use_run_separator:
+        arguments = arguments[1:]
+    explicit_project = None
+    native_args = []
+    extra_paths = {}
+    tokens = iter(arguments)
+    for argument in tokens:
+        if argument == "--":
+            if use_run_separator:
+                use_run_separator = False
+                continue
+            native_args.extend([argument, *tokens])
+            break
+        option, equals, value = argument.partition("=")
+        if option not in {"--project", "--add-dir"}:
+            native_args.append(argument)
+            continue
+        path = value if equals else next(tokens, "")
+        if not path or path.startswith("--"):
+            raise RuntimeError(f"{option} requires a directory.")
+        if option == "--project":
+            explicit_project = path
+        else:
+            native_args.append(option)
+            extra_paths[len(native_args)] = path
+            native_args.append(path)
+
+    project = project_path(explicit_project)
+    mounts = {}
+    for index, path in extra_paths.items():
+        directory = project_path(path)
+        if project is not None and directory.is_relative_to(project):
+            destination = WORKSPACE / directory.relative_to(project)
+        else:
+            destination = mounts.setdefault(
+                directory, EXTRA_MOUNTS / identity(directory) / directory.name
+            )
+        native_args[index] = str(destination)
+    return project, mounts, native_args
+
+
+def container_options():
+    return [
+        "run",
+        "--rm",
+        "--init",
+        "--pull=never",
+        "--userns=keep-id:uid=1000,gid=1000",
+        "--user=1000:1000",
+        "--read-only",
+        "--cap-drop=all",
+        "--security-opt=no-new-privileges",
+    ]
+
+
+def doctor():
+    check_sources()
+    print("Configuration and rootless Podman checks passed.", flush=True)
+    if image_exists(IMAGE):
+        podman(
+            *container_options(),
+            "--network=none",
+            "--mount=type=tmpfs,destination=/home/nvim,tmpfs-mode=0700,U=true",
+            IMAGE,
+            "/bin/sh",
+            "-ec",
+            "/usr/bin/codex --version; /usr/bin/codex sandbox /usr/bin/true",
+        )
+    else:
+        print("Run `codex build` to create the image.")
+
+
+def launch(project, command, *, mounts=None):
+    if not image_exists(IMAGE):
+        raise RuntimeError("Codex image is missing. Run `codex build` first.")
+    name = identity(project)
+    args = [
+        *container_options(),
+        *proxy_network(),
+        "--interactive",
+        "--env=TERM",
+        "--env=COLORTERM",
+        "--label",
+        f"{PROJECT_LABEL}={name}",
+        "--volume",
+        f"{name}:/home/nvim:U",
+    ]
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        args.append("--tty")
+    if project is not None:
+        args.extend(("--volume", f"{project}:{WORKSPACE}"))
+    for source, destination in (mounts or {}).items():
+        args.extend(("--volume", f"{source}:{destination}:rw"))
+    if mounts or project is not None:
+        if Path("/sys/fs/selinux/enforce").exists():
+            args.append("--security-opt=label=disable")
+    os.execvp("podman", ["podman", *args, IMAGE, *command])
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="Other arguments go to Codex. Use `codex login --device-auth` from a project "
+        "to sign in there, or `codex run -- --help` for Codex's own help. "
+        "Use `codex --project DIR --add-dir DIR` to mount a workspace and extra directories.",
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+    build_parser = commands.add_parser(
+        "build", help="build Codex on the local Neovim image"
+    )
+    build_parser.add_argument("--prepare-only", action="store_true")
+    commands.add_parser("doctor", help="check the container environment")
+    for name, help_text in (
+        ("shell", "open a project shell"),
+        ("stop", "stop project containers"),
+    ):
+        commands.add_parser(name, help=help_text).add_argument("project", nargs="?")
+    run_parser = commands.add_parser(
+        "run", help="choose a project and pass arguments to Codex"
+    )
+    run_parser.add_argument("--project", metavar="DIR")
+    run_parser.add_argument("--add-dir", metavar="DIR", action="append")
+
+    arguments = sys.argv[1:]
+    if arguments and arguments[0] in {
+        "-h",
+        "--help",
+        "build",
+        "doctor",
+        "shell",
+        "stop",
+    }:
+        args = parser.parse_args(arguments)
+        if args.command == "build":
+            build(args.prepare_only)
+            return
+        check_host()
+        if args.command == "doctor":
+            doctor()
+        else:
+            project = project_path(args.project)
+            if args.command == "shell":
+                launch(project, ["/bin/bash"])
+            else:
+                podman(
+                    "stop",
+                    "--ignore",
+                    "--filter",
+                    f"label={PROJECT_LABEL}={identity(project)}",
+                )
+        return
+
+    project, mounts, arguments = run_arguments(arguments)
+    check_host()
+    launch(project, ["/usr/bin/codex", *arguments], mounts=mounts)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except subprocess.CalledProcessError as error:
+        sys.exit(error.returncode)
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"codex: {error}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)
