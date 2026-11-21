@@ -1,9 +1,9 @@
 FROM docker.io/library/archlinux:base AS base
 
 RUN pacman -Syu --noconfirm --needed \
-    neovim git curl ca-certificates fd ripgrep fzf unzip \
-    gcc make cmake clang gdb rust rust-analyzer tree-sitter-cli \
-    nodejs npm python python-pip python-pynvim python-debugpy \
+    neovim git curl ca-certificates fd ripgrep fzf unzip jq \
+    gcc make cmake ninja clang gdb rust rust-analyzer tree-sitter-cli \
+    nodejs npm python uv python-pip python-pynvim python-debugpy \
  && pacman -Scc --noconfirm
 
 RUN groupadd -g 1000 nvim \
