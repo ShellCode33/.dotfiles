@@ -7,6 +7,14 @@ user_pref("keyword.enabled", true);
 // Use KeePassXC, not the built in password manager
 user_pref("signon.rememberSignons", false);
 
+// Disable payment card and address saving and autofill
+user_pref("extensions.formautofill.creditCards.enabled", false);
+user_pref("extensions.formautofill.addresses.enabled", false);
+
+// Use the system resolver for Firefox DNS lookups
+// Configure it to use a trusted DNS provider over an encrypted connection (DoH or DoT).
+user_pref("network.trr.mode", 5);
+
 // Proxy related (yes I use a local proxy by default, see https://github.com/ShellCode33/ArchLinux-Hardened/blob/master/docs/NETWORKING.md
 user_pref("network.proxy.type", 1);
 user_pref("network.proxy.share_proxy_settings", true);
