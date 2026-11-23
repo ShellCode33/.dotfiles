@@ -7,8 +7,10 @@ RUN pacman -Syu --noconfirm --needed \
   podman crun shadow libcap fuse-overlayfs passt dbus \
   && pacman -Scc --noconfirm
 # Arch base-image tarballs can strip the capabilities required by nested rootless Podman.
+# Seed .codex in new home volumes before Podman mounts the private daemon socket directory.
 RUN groupadd -g 1000 codex \
   && useradd -m -u 1000 -g 1000 -s /bin/bash codex \
+  && install -d -m 0700 -o 1000 -g 1000 /home/codex/.codex \
   && printf 'codex:1:999\ncodex:1001:64536\n' > /etc/subuid \
   && cp /etc/subuid /etc/subgid \
   && install -d -o 1000 -g 1000 /var/lib/codex-containers \
