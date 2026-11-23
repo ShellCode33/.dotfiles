@@ -9,8 +9,11 @@ if [ "${1:-}" = "--shell" ]; then
     shift
     exec /bin/bash "$@"
 fi
-# Reconcile persistent inner containers after the previous outer session ended.
-podman ps --all --sync >/dev/null
+# Reuse only Mesa's compiled shaders across fresh containers for this project.
+shader_cache=/var/lib/zed-containers/shader-cache
+if [ -w /var/lib/zed-containers ] && mkdir -p "$shader_cache"; then
+    export MESA_SHADER_CACHE_DIR="$shader_cache"
+fi
 if [ "${ZED_BOX_SOFTWARE_RENDERING:-0}" = 1 ]; then
     export LIBGL_ALWAYS_SOFTWARE=true
     for driver in /usr/share/vulkan/icd.d/lvp_icd*.json; do

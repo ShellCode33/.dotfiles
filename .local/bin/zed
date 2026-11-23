@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import platform
+import pwd
 import re
 import secrets
 import select
@@ -16,8 +17,6 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-import tomllib
-import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -27,6 +26,7 @@ ZED_CONFIG = CONFIG_HOME / "zed"
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "zed-box"
 ARTIFACTS = CACHE / "artifacts"
 CONTAINER_HOSTNAME = "zed-box"
+PODMAN = ("podman", "--remote=false")
 PROXY_VARIABLES = (
     "HTTP_PROXY",
     "HTTPS_PROXY",
@@ -91,14 +91,16 @@ def sha(path):
 
 
 def fetch(url, path):
+    from urllib.request import Request, urlopen
+
     if not url.startswith("https://"):
         fail("Downloads must use HTTPS")
     print(f"Downloading {url}", flush=True)
-    request = urllib.request.Request(url, headers={"User-Agent": "zed-box"})
+    request = Request(url, headers={"User-Agent": "zed-box"})
     temporary = Path(str(path) + ".part")
     try:
         with (
-            urllib.request.urlopen(request, timeout=120) as response,
+            urlopen(request, timeout=120) as response,
             temporary.open("wb") as dest,
         ):
             if not response.url.startswith("https://"):
@@ -158,6 +160,8 @@ def lock_tool_binaries():
 
 
 def lock_artifacts(release):
+    import tomllib
+
     if platform.machine() != "x86_64":
         fail("The declared Zed and tool release assets require an x86_64 host.")
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
@@ -302,7 +306,7 @@ def build(config, prepare_only=False):
                 fail(f"Hash mismatch: {source}")
             os.link(source, context / "artifacts" / source.name)
         command = [
-            "podman",
+            *PODMAN,
             "build",
             "--pull=always",
             "--no-cache",
@@ -351,16 +355,19 @@ def container_project_path(project):
     return str(Path("/workspace") / project.name)
 
 
-def host_check():
+def check_local_host():
     if os.getuid() == 0:
         fail("Run as your normal user, never sudo.")
+    if not shutil.which("podman"):
+        fail("Install Podman first.")
+
+
+def check_nesting_host():
     if not shutil.which("pasta"):
         fail("Install passt to provide the pasta network helper.")
-    info = json.loads(output(["podman", "info", "--format=json"]))
-    if not info["host"]["security"]["rootless"]:
-        fail("The outer Podman must be rootless.")
+    uid = os.getuid()
+    users = {str(uid), pwd.getpwuid(uid).pw_name}
     for filename in ["/etc/subuid", "/etc/subgid"]:
-        users = {str(os.getuid()), output(["id", "-un"])}
         count = sum(
             int(line.split(":")[2])
             for line in Path(filename).read_text().splitlines()
@@ -378,12 +385,35 @@ def host_check():
         )
 
 
+def host_check():
+    check_local_host()
+    if output([*PODMAN, "info", "--format", "{{.Host.Security.Rootless}}"]) != "true":
+        fail("The outer Podman must be rootless.")
+    check_nesting_host()
+
+
+def podman_exists(kind, name):
+    result = subprocess.run([*PODMAN, kind, "exists", name], check=False)
+    if result.returncode not in (0, 1):
+        result.check_returncode()
+    return result.returncode == 0
+
+
+def run_editor(args, image, *command):
+    try:
+        run([*args, image, *command])
+    except subprocess.CalledProcessError as error:
+        if error.returncode == 125 and not podman_exists("image", image):
+            fail("Editor image is not built. Run zed build.")
+        raise
+
+
 def base_command(config, project, name, temporary):
     destination = container_project_path(project)
     forward_proxy = config.get("forward_proxy", False)
     ports = loopback_proxy_ports() if forward_proxy else []
     args = [
-        "podman",
+        *PODMAN,
         "run",
         "--rm",
         "--name",
@@ -617,24 +647,22 @@ def display_options(config):
 
 
 def launch(config, project, action):
+    check_local_host()
     name = identity(project)
     if action == "stop":
-        run(["podman", "stop", name])
+        run([*PODMAN, "stop", name])
         return
-    host_check()
-    if subprocess.run(["podman", "image", "exists", config["image"]]).returncode != 0:
-        fail("Editor image is not built. Run zed build.")
-    exists = subprocess.run(["podman", "container", "exists", name]).returncode == 0
-    if exists:
+    if podman_exists("container", name):
         if action == "shell":
-            run(["podman", "exec", "-it", name, "/bin/bash"])
+            run([*PODMAN, "exec", "-it", name, "/bin/bash"])
         elif action == "run":
             # Existing containers may still use the previous /workspace mount.
             destination = output(
-                ["podman", "inspect", "--format", "{{.Config.WorkingDir}}", name]
+                [*PODMAN, "inspect", "--format", "{{.Config.WorkingDir}}", name]
             )
-            run(["podman", "exec", name, "zed", "--new", destination])
+            run([*PODMAN, "exec", name, "zed", "--new", destination])
         return
+    check_nesting_host()
     # Serialize storage use; a second concurrent launcher must not share a graphroot.
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
     with (
@@ -648,11 +676,11 @@ def launch(config, project, action):
         args = base_command(config, project, name, Path(temporary))
         if action == "shell":
             args.append("-it")
-            run(args + [config["image"], "--shell"])
+            run_editor(args, config["image"], "--shell")
             return
         with display_options(config) as display:
             args.extend(render_options(config, display_mode(config)))
-            run(args + display + [config["image"], container_project_path(project)])
+            run_editor(args + display, config["image"], container_project_path(project))
 
 
 def main():
