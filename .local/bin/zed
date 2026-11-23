@@ -330,7 +330,7 @@ def project_path(value):
     home = Path.home().resolve()
     if home.is_relative_to(project):
         fail("Refusing to expose your entire home. Choose a project directory.")
-    protected = [ROOT, ZED_CONFIG, home / ".ssh", home / ".gnupg"]
+    protected = [home / ".ssh", home / ".gnupg"]
     if os.environ.get("GNUPGHOME"):
         protected.append(Path(os.environ["GNUPGHOME"]).expanduser().absolute())
     for directory in protected:
@@ -353,6 +353,29 @@ def identity(project):
 
 def container_project_path(project):
     return str(Path("/workspace") / project.name)
+
+
+def project_mounts(project):
+    destination = Path(container_project_path(project))
+    config_paths = sorted({ROOT.resolve(), ZED_CONFIG.resolve()})
+    mount = f"type=bind,src={project},dst={destination}"
+    if any(project.is_relative_to(path) for path in config_paths):
+        return ["--mount", mount + ",ro,bind-nonrecursive"]
+
+    args = ["--mount", mount + ",rw"]
+    for path in config_paths:
+        if path.is_relative_to(project):
+            if any(character in str(path) for character in (",", "\n")):
+                fail(
+                    "Zed configuration paths containing commas or newlines cannot be mounted."
+                )
+            args.extend(
+                [
+                    "--mount",
+                    f"type=bind,src={path},dst={destination / path.relative_to(project)},ro,bind-nonrecursive",
+                ]
+            )
+    return args
 
 
 def check_local_host():
@@ -440,8 +463,7 @@ def base_command(config, project, name, temporary):
         destination,
         "--volume",
         name + "-storage:/var/lib/zed-containers:U",
-        "--mount",
-        f"type=bind,src={project},dst={destination},rw",
+        *project_mounts(project),
     ]
     if ports:
         # Each nested network namespace needs its own path to the outer proxy.
