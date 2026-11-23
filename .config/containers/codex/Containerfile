@@ -1,21 +1,19 @@
 FROM docker.io/library/archlinux:base
 
-# Reinstall shadow to restore the mapping helpers' file capabilities.
 RUN pacman -Syu --noconfirm --needed \
   openai-codex openssh neovim git curl ca-certificates fd ripgrep fzf unzip jq \
   gcc make cmake ninja clang gdb rust rust-analyzer \
   nodejs npm python uv python-pip python-debugpy \
   podman crun shadow libcap fuse-overlayfs passt dbus \
-  && pacman -S --noconfirm shadow \
   && pacman -Scc --noconfirm
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# Arch base-image tarballs can strip the capabilities required by nested rootless Podman.
 RUN groupadd -g 1000 codex \
   && useradd -m -u 1000 -g 1000 -s /bin/bash codex \
   && printf 'codex:1:999\ncodex:1001:64536\n' > /etc/subuid \
   && cp /etc/subuid /etc/subgid \
   && install -d -o 1000 -g 1000 /var/lib/codex-containers \
-  && getcap /usr/bin/newuidmap | grep -q cap_setuid=ep \
-  && getcap /usr/bin/newgidmap | grep -q cap_setgid=ep
+  && setcap cap_setuid=ep /usr/bin/newuidmap \
+  && setcap cap_setgid=ep /usr/bin/newgidmap
 
 COPY inner/ /etc/containers/
 RUN chmod 0644 /etc/containers/containers.conf /etc/containers/storage.conf

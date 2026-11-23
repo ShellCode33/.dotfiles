@@ -31,15 +31,9 @@ PROXY_VARIABLES = (
     "HTTP_PROXY",
     "HTTPS_PROXY",
     "FTP_PROXY",
-    "ALL_PROXY",
-    "NO_PROXY",
-    "RSYNC_PROXY",
     "http_proxy",
     "https_proxy",
     "ftp_proxy",
-    "all_proxy",
-    "no_proxy",
-    "rsync_proxy",
 )
 
 
@@ -66,7 +60,7 @@ def output(args):
     return run(args, stdout=subprocess.PIPE, text=True).stdout.strip()
 
 
-def loopback_proxy_ports(variables):
+def loopback_proxy_ports():
     ports = set()
     default_ports = {
         "ftp": 21,
@@ -76,8 +70,8 @@ def loopback_proxy_ports(variables):
         "socks5": 1080,
         "socks5h": 1080,
     }
-    for name in variables:
-        if name.lower() == "no_proxy" or not (value := os.environ.get(name)):
+    for name in PROXY_VARIABLES:
+        if not (value := os.environ.get(name)):
             continue
         proxy = urlsplit(value if "://" in value else f"//{value}")
         if proxy.hostname in {"localhost", "127.0.0.1", "::1"}:
@@ -312,16 +306,12 @@ def build(config, prepare_only=False):
             "build",
             "--pull=always",
             "--no-cache",
+            "--http-proxy=true",
             "--build-arg",
             "BASE_IMAGE=" + config["base_image"],
         ]
-        proxy_variables = (*PROXY_VARIABLES, "NPM_PROXY")
-        if ports := loopback_proxy_ports(proxy_variables):
+        if ports := loopback_proxy_ports():
             command.append(pasta_network(ports))
-        # Podman reads the values from its environment when given only the names.
-        for name in proxy_variables:
-            if name in os.environ:
-                command.extend(["--build-arg", name])
         command.extend(["-t", config["image"], str(context)])
         if prepare_only:
             print(json.dumps({"context": str(context), "command": command}))
@@ -391,15 +381,7 @@ def host_check():
 def base_command(config, project, name, temporary):
     destination = container_project_path(project)
     forward_proxy = config.get("forward_proxy", False)
-    runtime_proxies = (
-        "HTTP_PROXY",
-        "HTTPS_PROXY",
-        "FTP_PROXY",
-        "http_proxy",
-        "https_proxy",
-        "ftp_proxy",
-    )
-    ports = loopback_proxy_ports(runtime_proxies) if forward_proxy else []
+    ports = loopback_proxy_ports() if forward_proxy else []
     args = [
         "podman",
         "run",

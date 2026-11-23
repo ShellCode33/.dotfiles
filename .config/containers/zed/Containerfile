@@ -1,10 +1,5 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-ARG ALL_PROXY
-ARG all_proxy
-ARG RSYNC_PROXY
-ARG rsync_proxy
 # Use the base image's live Arch mirrors; keep package signatures enabled.
 # The launcher rebuilds without cached layers so this full upgrade always runs.
 RUN pacman -Syu --noconfirm --needed \
@@ -18,29 +13,25 @@ RUN pacman -Syu --noconfirm --needed \
     wayland libx11 libxcb libxkbcommon libxkbcommon-x11 libxcursor libxi \
     libxrandr libxrender mesa vulkan-swrast vulkan-intel vulkan-radeon \
     ttf-dejavu ncurses icu \
- && pacman -S --noconfirm shadow \
  && pacman -Scc --noconfirm \
  && rm -rf /var/cache/pacman/pkg/*
-# Reinstalling shadow above restores capabilities missing from base-image tarballs.
 # PHP ships optional modules disabled; enable the installed modules needed by tools.
-RUN mkdir -p /etc/php/conf.d \
+RUN /bin/bash -o pipefail -c 'mkdir -p /etc/php/conf.d \
  && for module in curl mbstring iconv zip dom xml xmlreader xmlwriter simplexml sqlite3 pdo_sqlite; do \
       if test -f "/usr/lib/php/modules/$module.so" && ! php -m | grep -Fxiq "$module"; then \
-        printf 'extension=%s\n' "$module" >> /etc/php/conf.d/zed-box.ini; \
+        printf "extension=%s\n" "$module" >> /etc/php/conf.d/zed-box.ini; \
       fi; \
-    done
+    done'
+# Arch base-image tarballs can strip the capabilities required by nested rootless Podman.
 RUN groupadd -g 1000 zed && useradd -m -u 1000 -g 1000 -s /bin/bash zed \
  && printf 'zed:1:999\nzed:1001:64536\n' > /etc/subuid \
  && printf 'zed:1:999\nzed:1001:64536\n' > /etc/subgid \
  && mkdir -p /var/lib/zed-containers /opt/zed-extensions /etc/zed-box/zed \
  && chown 1000:1000 /var/lib/zed-containers \
- && getcap /usr/bin/newuidmap | grep -q cap_setuid=ep \
- && getcap /usr/bin/newgidmap | grep -q cap_setgid=ep
+ && setcap cap_setuid=ep /usr/bin/newuidmap \
+ && setcap cap_setgid=ep /usr/bin/newgidmap
 COPY tools/ /opt/zed-tools/
-ARG NPM_PROXY
-RUN HTTP_PROXY="${NPM_PROXY:-$HTTP_PROXY}" HTTPS_PROXY="${NPM_PROXY:-$HTTPS_PROXY}" \
-    http_proxy="${NPM_PROXY:-$http_proxy}" https_proxy="${NPM_PROXY:-$https_proxy}" \
-    npm ci --prefix /opt/zed-tools --ignore-scripts --no-audit --no-fund \
+RUN npm ci --prefix /opt/zed-tools --ignore-scripts --no-audit --no-fund \
  && npm cache clean --force
 COPY artifacts/ /tmp/artifacts/
 COPY unpack.py /tmp/unpack.py
