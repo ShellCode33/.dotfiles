@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+AUTH_HOME = Path("/run/codex-auth")
 LEGACY_DAEMON_RELEASES = Path("/home/nvim/.codex/packages/app-server-daemon/releases")
 
 
@@ -33,9 +34,28 @@ def migrate_daemon_selection(home):
             staging.replace(current)
 
 
+def link_credentials(home):
+    # Codex writes through auth.json symlinks. Share its refresh locks as well.
+    with TemporaryDirectory(dir=home) as scratch:
+        for name in ("auth.json", "auth.lock", "auth.json.lock"):
+            link = home / name
+            target = AUTH_HOME / name
+            if link.is_symlink() and link.readlink() == target:
+                continue
+            staging = Path(scratch) / name
+            staging.symlink_to(target)
+            staging.replace(link)
+
+
 def main():
     command = sys.argv[1:]
-    migrate_daemon_selection(Path(os.environ["CODEX_HOME"]))
+    if command[:2] == ["/usr/bin/codex", "logout"]:
+        # Codex removes auth.json itself during logout, so give it the shared directory.
+        os.environ["CODEX_HOME"] = str(AUTH_HOME)
+    else:
+        home = Path(os.environ["CODEX_HOME"])
+        migrate_daemon_selection(home)
+        link_credentials(home)
     os.execvp(command[0], command)
 
 

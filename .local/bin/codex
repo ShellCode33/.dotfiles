@@ -19,6 +19,7 @@ PROJECT_LABEL = "io.dotfiles.codex.project"
 CONTAINER_HOME = "/home/codex"
 WORKSPACE = Path("/workspace")
 EXTRA_MOUNTS = Path("/mnt/codex")
+AUTH_MOUNT = "/run/codex-auth"
 
 
 def podman(*args, **kwargs):
@@ -124,7 +125,7 @@ def project_path(explicit):
         raise RuntimeError(f"Project directory does not exist: {project}")
     if home.is_relative_to(project):
         raise RuntimeError("Choose a project directory smaller than your home.")
-    for directory in (home / ".codex", home / ".ssh", home / ".gnupg"):
+    for directory in (home / ".codex", home / ".ssh", home / ".gnupg", auth_home()):
         protected = directory.resolve()
         if project.is_relative_to(protected) or protected.is_relative_to(project):
             raise RuntimeError(f"Refusing to mount credential directory {directory}.")
@@ -137,6 +138,21 @@ def identity(project):
     if project is None:
         return "codex-empty"
     return "codex-" + hashlib.sha256(os.fsencode(project)).hexdigest()[:16]
+
+
+def auth_home():
+    data = Path(os.environ.get("XDG_DATA_HOME", ""))
+    if not data.is_absolute():
+        data = Path.home() / ".local/share"
+    return (data / "codex-container/auth").resolve()
+
+
+def auth_volume():
+    home = auth_home()
+    if ":" in str(home):
+        raise RuntimeError("The Codex credential directory cannot contain a colon.")
+    home.mkdir(mode=0o700, parents=True, exist_ok=True)
+    return f"{home}:{AUTH_MOUNT}:z"
 
 
 def run_arguments(arguments):
@@ -245,6 +261,8 @@ def launch(project, command, *, mounts=None):
         # The daemon's control socket points into this container's private /tmp.
         f"--mount=type=tmpfs,destination={CONTAINER_HOME}/.codex/app-server-control,"
         "tmpfs-mode=0700,notmpcopyup,U=true",
+        "--volume",
+        auth_volume(),
     ]
     if ports:
         args.append("--env=CODEX_PASTA_PROXY_PORTS=" + ",".join(map(str, ports)))
@@ -261,8 +279,8 @@ def launch(project, command, *, mounts=None):
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__,
-        epilog="Other arguments go to Codex. Use `codex login --device-auth` from a project "
-        "to sign in there, or `codex run -- --help` for Codex's own help. "
+        epilog="Other arguments go to Codex. Use `codex login --device-auth` to sign in "
+        "for all projects, or `codex run -- --help` for Codex's own help. "
         "Use `codex --project DIR --add-dir DIR` to mount a workspace and extra directories.",
     )
     commands = parser.add_subparsers(dest="command", required=True)
