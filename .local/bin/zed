@@ -309,7 +309,7 @@ def build(config, prepare_only=False):
             *PODMAN,
             "build",
             "--pull=always",
-            "--no-cache",
+            "--layers=false",
             "--http-proxy=true",
             "--build-arg",
             "BASE_IMAGE=" + config["base_image"],
