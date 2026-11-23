@@ -39,13 +39,33 @@ local function warm_filetypes()
     io.stdout:write("Prewarmed filetypes: ", table.concat(warmed, ", "), "\n")
 end
 
+local function warm_explorer()
+    local readme = vim.fs.joinpath(vim.fn.argv(0), "README.md")
+    local picker
+    assert(
+        vim.wait(3000, function()
+            picker = Snacks.picker.get({ source = "explorer" })[1]
+            return picker
+                and picker:count() > 0
+                and vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(picker.main)) == readme
+        end),
+        "Directory warmup could not open the README and explorer"
+    )
+end
+
+local warm = warm_filetypes
+if vim.g.nvim_image_warm_explorer then
+    vim.lsp.start = function() end
+    warm = warm_explorer
+end
+
 -- Start with a real UI so the dashboard and UI plugins run their usual startup.
 vim.api.nvim_create_autocmd("User", {
     pattern = "VeryLazy",
     once = true,
     callback = function()
         vim.schedule(function()
-            local ok, error_message = xpcall(warm_filetypes, debug.traceback)
+            local ok, error_message = xpcall(warm, debug.traceback)
             if not ok then
                 io.stderr:write(error_message, "\n")
             end

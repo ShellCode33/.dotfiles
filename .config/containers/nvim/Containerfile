@@ -37,8 +37,12 @@ COPY --chown=1000:1000 warm-filetypes.lua warm-ui.py /usr/local/share/
 # Compile against the final image paths and file timestamps with a UI attached.
 RUN set -eu; \
     build_cache="$(mktemp -d)"; \
+    mkdir "$build_cache/project"; \
+    printf '# Warmup project\n\nSample README for the explorer.\n' >"$build_cache/project/README.md"; \
     export XDG_CACHE_HOME="$build_cache" XDG_STATE_HOME="$build_cache/state"; \
     python /usr/local/share/warm-ui.py -n -i NONE -c 'luafile /usr/local/share/warm-filetypes.lua'; \
+    python /usr/local/share/warm-ui.py -n -i NONE \
+        -c 'let g:nvim_image_warm_explorer = 1' -c 'luafile /usr/local/share/warm-filetypes.lua' "$build_cache/project"; \
     test -s "$build_cache/nvim/lazy/pkg-cache.lua"; \
     test -n "$(find "$build_cache/nvim/luac" -type f -print -quit)"; \
     tar -cf /opt/nvim-cache-seed/cache.tar -C "$build_cache/nvim" lazy/pkg-cache.lua luac; \
