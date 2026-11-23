@@ -241,15 +241,42 @@ def identity(project):
     return "nvim-" + hashlib.sha256(os.fsencode(project)).hexdigest()[:16]
 
 
+def remove_editor_in_background(container):
+    # A user can detach while the editor is still running. Wait in that case
+    # and remove the container without forcing Neovim to stop.
+    cleanup = [
+        "/bin/sh",
+        "-c",
+        "container=$1; shift; "
+        'if "$@" rm --ignore --volumes "$container"; then exit 0; fi; '
+        '"$@" wait --ignore "$container" && exec "$@" rm --ignore --volumes "$container"',
+        "nvim-cleanup",
+        container,
+        *PODMAN,
+    ]
+    subprocess.Popen(
+        cleanup,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+
 def launch(project, command, *, mounts=None):
     # With local Podman, the caller's UID determines whether the run is rootless.
     check_local_host()
     name = identity(project if project is not None else next(iter(mounts or ()), None))
     interactive = sys.stdin.isatty() and sys.stdout.isatty()
+    container = None
+    lifecycle = ["--rm"]
+    if interactive and command[0] == "nvim":
+        container = "nvim-editor-" + os.urandom(16).hex()
+        lifecycle = ["--name", container]
     args = [
         *PODMAN,
         "run",
-        "--rm",
+        *lifecycle,
         "--init",
         "--pull=never",
         "--userns=keep-id:uid=1000,gid=1000",
@@ -290,6 +317,8 @@ def launch(project, command, *, mounts=None):
         finally:
             for signum, handler in previous_handlers.items():
                 signal.signal(signum, handler)
+            if container is not None:
+                remove_editor_in_background(container)
     if status == 125 and not image_exists():
         raise RuntimeError("Editor image is missing. Run `nvim build` first.")
     sys.exit(status if status >= 0 else 128 - status)
