@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Run Codex CLI with the rootless Neovim toolchain."""
+"""Run Codex CLI with a nested rootless Podman engine."""
 
 import argparse
 import hashlib
 import json
 import os
+import pwd
 import shutil
 import subprocess
 import sys
@@ -12,9 +13,10 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 CONTEXT = Path(__file__).resolve().parents[2] / ".config/containers/codex"
-BASE_IMAGE = "localhost/nvim:local"
+NESTING_SECCOMP = CONTEXT.parent / "zed/seccomp-nesting.json"
 IMAGE = "localhost/codex:local"
 PROJECT_LABEL = "io.dotfiles.codex.project"
+CONTAINER_HOME = "/home/codex"
 WORKSPACE = Path("/workspace")
 EXTRA_MOUNTS = Path("/mnt/codex")
 
@@ -42,31 +44,63 @@ def image_exists(image):
     return result.returncode == 0
 
 
-def proxy_network():
+def check_nesting_host():
+    if not NESTING_SECCOMP.is_file():
+        raise FileNotFoundError(f"Missing nesting seccomp profile: {NESTING_SECCOMP}")
+    if not shutil.which("crun") or not shutil.which("pasta"):
+        raise RuntimeError("Install crun and passt on the host.")
+    uid = os.getuid()
+    owners = {str(uid), pwd.getpwuid(uid).pw_name}
+    for path in (Path("/etc/subuid"), Path("/etc/subgid")):
+        count = sum(
+            int(size)
+            for owner, _, size in (
+                line.split(":") for line in path.read_text().splitlines() if line
+            )
+            if owner in owners
+        )
+        if count < 65536:
+            raise RuntimeError(f"Need at least 65536 subordinate IDs in {path}.")
+    for device in (Path("/dev/fuse"), Path("/dev/net/tun")):
+        if not device.is_char_device():
+            raise RuntimeError(f"Nested Podman requires {device} on the host.")
+
+
+def proxy_ports():
     ports = set()
     for name in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
         value = os.environ.get(name, "")
         proxy = urlsplit(value if "://" in value else f"//{value}")
         if proxy.hostname in {"localhost", "127.0.0.1", "::1"}:
             ports.add(proxy.port or (443 if proxy.scheme == "https" else 80))
-    if ports:
-        return ["--network=pasta:" + ",".join(f"-T,{port}" for port in sorted(ports))]
-    return []
+    return sorted(ports)
+
+
+def proxy_network(ports):
+    return "--network=pasta" + (
+        ":" + ",".join(f"-T,{port}" for port in ports) if ports else ""
+    )
 
 
 def check_sources():
-    for name in ("Containerfile", "entrypoint.sh"):
+    for name in (
+        "Containerfile",
+        "entrypoint.sh",
+        "inner/containers.conf",
+        "inner/storage.conf",
+    ):
         if not (CONTEXT / name).is_file():
             raise FileNotFoundError(f"Required file is missing: {CONTEXT / name}")
 
 
 def build(prepare_only):
     check_sources()
+    ports = proxy_ports()
     command = [
         "build",
-        "--pull=never",
+        "--pull=always",
         "--layers=false",
-        *proxy_network(),
+        *([proxy_network(ports)] if ports else []),
         "-t",
         IMAGE,
         str(CONTEXT),
@@ -76,8 +110,6 @@ def build(prepare_only):
         return
 
     check_host()
-    if not image_exists(BASE_IMAGE):
-        subprocess.run([Path(__file__).with_name("nvim"), "build"], check=True)
     podman(*command)
 
 
@@ -151,31 +183,44 @@ def run_arguments(arguments):
 
 
 def container_options():
-    return [
+    args = [
         "run",
         "--rm",
         "--init",
         "--pull=never",
+        "--runtime=crun",
         "--userns=keep-id:uid=1000,gid=1000",
         "--user=1000:1000",
+        "--group-add=keep-groups",
         "--read-only",
-        "--cap-drop=all",
-        "--security-opt=no-new-privileges",
+        "--security-opt=unmask=/proc/*",
+        f"--security-opt=seccomp={NESTING_SECCOMP}",
+        "--device=/dev/fuse",
+        "--device=/dev/net/tun",
+        "--tmpfs=/tmp:rw,exec,nosuid,nodev,mode=1777,size=4g",
+        "--shm-size=512m",
+        # An anonymous volume keeps each session's engine state independent.
+        "--mount=type=volume,destination=/var/lib/codex-containers,U=true",
     ]
+    if Path("/sys/fs/selinux/enforce").exists():
+        args.append("--security-opt=label=disable")
+    return args
 
 
 def doctor():
     check_sources()
-    print("Configuration and rootless Podman checks passed.", flush=True)
+    check_nesting_host()
+    print("Host prerequisites for nested rootless Podman passed.", flush=True)
     if image_exists(IMAGE):
         podman(
             *container_options(),
             "--network=none",
-            "--mount=type=tmpfs,destination=/home/nvim,tmpfs-mode=0700,U=true",
+            f"--mount=type=tmpfs,destination={CONTAINER_HOME},tmpfs-mode=0700,U=true",
             IMAGE,
             "/bin/sh",
             "-ec",
-            "/usr/bin/codex --version; /usr/bin/codex sandbox /usr/bin/true",
+            "/usr/bin/codex --version; /usr/bin/codex sandbox /usr/bin/true; "
+            "podman unshare true; podman info --format '{{.Host.Security.Rootless}}' | grep -qx true",
         )
     else:
         print("Run `codex build` to create the image.")
@@ -184,28 +229,33 @@ def doctor():
 def launch(project, command, *, mounts=None):
     if not image_exists(IMAGE):
         raise RuntimeError("Codex image is missing. Run `codex build` first.")
+    check_nesting_host()
     name = identity(project)
+    ports = proxy_ports()
     args = [
         *container_options(),
-        *proxy_network(),
+        proxy_network(ports),
         "--interactive",
         "--env=TERM",
         "--env=COLORTERM",
         "--label",
         f"{PROJECT_LABEL}={name}",
         "--volume",
-        f"{name}:/home/nvim:U",
+        f"{name}:{CONTAINER_HOME}:U",
+        # The daemon's control socket points into this container's private /tmp.
+        f"--mount=type=tmpfs,destination={CONTAINER_HOME}/.codex/app-server-control,"
+        "tmpfs-mode=0700,notmpcopyup,U=true",
     ]
+    if ports:
+        args.append("--env=CODEX_PASTA_PROXY_PORTS=" + ",".join(map(str, ports)))
     if sys.stdin.isatty() and sys.stdout.isatty():
         args.append("--tty")
     if project is not None:
         args.extend(("--volume", f"{project}:{WORKSPACE}"))
     for source, destination in (mounts or {}).items():
         args.extend(("--volume", f"{source}:{destination}:rw"))
-    if mounts or project is not None:
-        if Path("/sys/fs/selinux/enforce").exists():
-            args.append("--security-opt=label=disable")
-    os.execvp("podman", ["podman", *args, IMAGE, *command])
+    runtime = ["python", "-c", (CONTEXT / "runtime.py").read_text(encoding="utf-8")]
+    os.execvp("podman", ["podman", *args, IMAGE, *runtime, *command])
 
 
 def main():
@@ -216,9 +266,7 @@ def main():
         "Use `codex --project DIR --add-dir DIR` to mount a workspace and extra directories.",
     )
     commands = parser.add_subparsers(dest="command", required=True)
-    build_parser = commands.add_parser(
-        "build", help="build Codex on the local Neovim image"
-    )
+    build_parser = commands.add_parser("build", help="build the standalone Codex image")
     build_parser.add_argument("--prepare-only", action="store_true")
     commands.add_parser("doctor", help="check the container environment")
     for name, help_text in (
