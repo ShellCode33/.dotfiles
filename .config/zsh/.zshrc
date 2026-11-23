@@ -66,14 +66,19 @@ precmd() {
     PROMPT="%B%{$fg[red]%}[%{$fg[yellow]%}%n%{$fg[green]%}@%{$fg[blue]%}%M %{$fg[magenta]%}%${max_path_entries}~%{$fg[red]%}]%b${vcs_info_msg_0_} $ "
 }
 
-# Function that wraps the git command in order to use nvim when possible
+# Browse interactive Git output in containerized Neovim.
 git() {
-    if [[ "$1" = "show" ]] || [[ "$1" = "log" ]] || [[ "$1" = "diff" ]]; then
-        if command git "$@" >/tmp/git.$$; then
-            nvim /tmp/git.$$
-        fi
+    if [[ -t 0 && -t 1 && ("${1-}" = "show" || "${1-}" = "log" || "${1-}" = "diff") ]]; then
+        setopt localoptions localtraps
+        local output git_status=0 pager_status=0
+        output=$(mktemp /tmp/nvim-git.XXXXXXXX) || return
+        trap "rm -f -- ${(q)output}" EXIT
 
-        rm /tmp/git.$$
+        command git --no-pager "$@" >"$output" || git_status=$?
+        if [[ -s "$output" ]]; then
+            (cd -q -- "$HOME" && "$HOME/.local/bin/nvim" -R -n -c 'set syntax=git' -- "$output") || pager_status=$?
+        fi
+        return $((git_status ? git_status : pager_status))
     else
         command git "$@"
     fi
