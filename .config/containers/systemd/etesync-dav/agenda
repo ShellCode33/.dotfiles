@@ -311,12 +311,10 @@ def main() -> int:
             timezone = ZoneInfo.from_file(stream)
         now = datetime.now(timezone)
         if mode == "summary":
-            day = now.date() + timedelta(days=7)
-        elif mode == "waybar":
-            day = next_month(now.date())
+            until = now + timedelta(days=30)
         else:
-            day = next_year(now.date())
-        until = datetime.combine(day, time.min, timezone)
+            day = next_month(now.date()) if mode == "waybar" else next_year(now.date())
+            until = datetime.combine(day, time.min, timezone)
         _ = signal.signal(signal.SIGALRM, timed_out)
         _ = signal.alarm(15)
         events = load_events(now, until, timezone)
@@ -332,13 +330,12 @@ def main() -> int:
                 "class": "calendar",
             }
             print(json.dumps(output, ensure_ascii=False))
+        elif mode == "summary":
+            if events:
+                print(format_events(events, "[agenda] Next 30 days", 10))
         else:
-            heading = (
-                "[agenda] Next 7 days"
-                if mode == "summary"
-                else f"[agenda] Upcoming events · through {until:%Y-%m-%d} (exclusive)"
-            )
-            print(format_events(events, heading, 10 if mode == "summary" else None))
+            heading = f"[agenda] Upcoming events · through {until:%Y-%m-%d} (exclusive)"
+            print(format_events(events, heading))
         return 0
     except (OSError, ValueError, ET.ParseError) as error:
         print(
