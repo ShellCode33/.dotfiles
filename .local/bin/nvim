@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -17,6 +18,7 @@ CHECKOUT = Path(__file__).resolve().parents[2]
 CONFIG = CHECKOUT / ".config/nvim"
 CONTAINER = CHECKOUT / ".config/containers/nvim"
 IMAGE = "localhost/nvim:local"
+PODMAN = ("podman", "--remote=false")
 WORKSPACE = Path("/workspace")
 EXTRA_MOUNTS = Path("/mnt/nvim")
 PROJECT_LABEL = "io.dotfiles.nvim.project"
@@ -38,7 +40,7 @@ OPTIONS_WITH_VALUES = {
 
 
 def podman(*args, **kwargs):
-    return subprocess.run(["podman", *args], check=True, **kwargs)
+    return subprocess.run([*PODMAN, *args], check=True, **kwargs)
 
 
 def check_sources():
@@ -51,11 +53,15 @@ def check_sources():
             raise FileNotFoundError(f"Required file is missing: {path}")
 
 
-def check_host():
+def check_local_host():
     if os.getuid() == 0:
         raise RuntimeError("Run as your normal user.")
     if not shutil.which("podman"):
         raise RuntimeError("Install Podman first.")
+
+
+def check_host():
+    check_local_host()
     info = podman(
         "info", "--format", "{{.Host.Security.Rootless}}", stdout=subprocess.PIPE
     )
@@ -64,7 +70,7 @@ def check_host():
 
 
 def image_exists():
-    result = subprocess.run(["podman", "image", "exists", IMAGE], check=False)
+    result = subprocess.run([*PODMAN, "image", "exists", IMAGE], check=False)
     if result.returncode not in (0, 1):
         result.check_returncode()
     return result.returncode == 0
@@ -101,7 +107,7 @@ def build(prepare_only):
         )
         args = ["build", "--pull=always", *proxy_network(), "-t", IMAGE, str(context)]
         if prepare_only:
-            print(json.dumps({"context": str(context), "command": ["podman", *args]}))
+            print(json.dumps({"context": str(context), "command": [*PODMAN, *args]}))
             keep_context = True
         else:
             podman(*args)
@@ -229,11 +235,12 @@ def identity(project):
 
 
 def launch(project, command, *, mounts=None):
-    if not image_exists():
-        raise RuntimeError("Editor image is missing. Run `nvim build` first.")
+    # With local Podman, the caller's UID determines whether the run is rootless.
+    check_local_host()
     name = identity(project if project is not None else next(iter(mounts or ()), None))
+    interactive = sys.stdin.isatty() and sys.stdout.isatty()
     args = [
-        "podman",
+        *PODMAN,
         "run",
         "--rm",
         "--init",
@@ -252,7 +259,7 @@ def launch(project, command, *, mounts=None):
         "--volume",
         f"{name}:/home/nvim:U",
     ]
-    if sys.stdin.isatty() and sys.stdout.isatty():
+    if interactive:
         args.append("--tty")
     if project is not None:
         args.extend(("--volume", f"{project}:{WORKSPACE}"))
@@ -261,7 +268,24 @@ def launch(project, command, *, mounts=None):
     if mounts or project is not None:
         if Path("/sys/fs/selinux/enforce").exists():
             args.append("--security-opt=label=disable")
-    os.execvp("podman", [*args, IMAGE, *command])
+    # Keep the terminal attached and check for a missing image only if Podman fails.
+    with subprocess.Popen([*args, IMAGE, *command]) as process:
+
+        def forward_signal(signum, _frame):
+            process.send_signal(signum)
+
+        previous_handlers = {
+            signum: signal.signal(signum, forward_signal)
+            for signum in (signal.SIGHUP, signal.SIGTERM)
+        }
+        try:
+            status = process.wait()
+        finally:
+            for signum, handler in previous_handlers.items():
+                signal.signal(signum, handler)
+    if status == 125 and not image_exists():
+        raise RuntimeError("Editor image is missing. Run `nvim build` first.")
+    sys.exit(status if status >= 0 else 128 - status)
 
 
 def main():
@@ -306,8 +330,8 @@ def main():
         if args.command == "build":
             build(args.prepare_only)
             return
-        check_host()
         if args.command == "doctor":
+            check_host()
             check_sources()
             print("Configuration and rootless Podman checks passed.")
             print(
@@ -325,6 +349,7 @@ def main():
         if args.command == "shell":
             launch(project, ["/bin/bash"])
         else:
+            check_host()
             podman(
                 "stop",
                 "--ignore",
@@ -334,7 +359,6 @@ def main():
         return
 
     project, mounts = editor_mounts(explicit_project, editor_args)
-    check_host()
     launch(project, ["nvim", *editor_args], mounts=mounts)
 
 
