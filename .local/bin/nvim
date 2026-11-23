@@ -22,7 +22,14 @@ PODMAN = ("podman", "--remote=false")
 WORKSPACE = Path("/workspace")
 EXTRA_MOUNTS = Path("/mnt/nvim")
 PROJECT_LABEL = "io.dotfiles.nvim.project"
-BUILD_FILES = ("Containerfile", "entrypoint.sh", "prewarm.lua", "runtime.lua")
+BUILD_FILES = (
+    "Containerfile",
+    "entrypoint.sh",
+    "prewarm.lua",
+    "runtime.lua",
+    "warm-filetypes.lua",
+    "warm-ui.py",
+)
 OPTIONS_WITH_VALUES = {
     "-c",
     "-i",

@@ -1,13 +1,15 @@
+local mason = {
+    "mason-org/mason.nvim",
+    config = function(_, opts)
+        -- The image build installs and verifies the configured tools.
+        require("mason").setup(opts)
+    end,
+}
+
 if vim.g.nvim_image_prewarm then
-    -- The build installs the configured tools synchronously in prewarm.lua.
+    mason.build = false
     return {
-        {
-            "mason-org/mason.nvim",
-            build = false,
-            config = function(_, opts)
-                require("mason").setup(opts)
-            end,
-        },
+        mason,
         { "jay-babu/mason-nvim-dap.nvim", config = function() end },
         {
             "iamcco/markdown-preview.nvim",
@@ -19,6 +21,5 @@ if vim.g.nvim_image_prewarm then
     }
 end
 
-return {
-    { "mason-org/mason.nvim", opts = { registry_cache = { refresh = false } } },
-}
+mason.opts = { registry_cache = { refresh = false } }
+return { mason }

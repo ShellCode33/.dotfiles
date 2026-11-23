@@ -5,7 +5,7 @@ local function git(args)
 end
 
 local function prewarm()
-    local lock = vim.json.decode(table.concat(vim.fn.readfile("/usr/local/share/nvim-config/lazy-lock.json"), "\n"))
+    local lock = vim.json.decode(table.concat(vim.fn.readfile(vim.fn.stdpath("config") .. "/lazy-lock.json"), "\n"))
     if vim.g.nvim_image_bootstrap then
         -- Make LazyVim's imported specs available before Lazy resolves the lockfile.
         for name, repository in pairs({ ["lazy.nvim"] = "folke/lazy.nvim", LazyVim = "LazyVim/LazyVim" }) do

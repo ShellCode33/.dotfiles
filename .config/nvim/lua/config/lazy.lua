@@ -6,6 +6,11 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(vim.env.LAZY or lazypath)
 
+local container = vim.env.NVIM_CONTAINER == "1"
+if container then
+    vim.g.lazyvim_json = "/tmp/lazyvim.json"
+end
+
 require("lazy").setup({
     spec = {
         -- add LazyVim and import its plugins
@@ -47,6 +52,7 @@ require("lazy").setup({
         -- version = "*", -- try installing the latest stable version for plugins that support semver
     },
     install = { colorscheme = { "tokyonight", "habamax" } },
+    pkg = container and { cache = vim.fn.stdpath("cache") .. "/lazy/pkg-cache.lua" } or nil,
     checker = { enabled = false }, -- disable plugin updates checks
     performance = {
         rtp = {

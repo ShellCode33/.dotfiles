@@ -9,28 +9,40 @@ RUN pacman -Syu --noconfirm --needed \
 RUN groupadd -g 1000 nvim \
  && useradd -m -u 1000 -g 1000 -s /bin/bash nvim
 
-COPY nvim/ /usr/local/share/nvim-config/
-COPY runtime.lua /usr/local/share/nvim-config/lua/plugins/container.lua
+COPY --chown=1000:1000 nvim/ /opt/nvim-config/nvim/
+COPY --chown=1000:1000 runtime.lua /opt/nvim-config/nvim/lua/plugins/container.lua
 
 ENV HOME=/home/nvim USER=nvim LOGNAME=nvim SHELL=/bin/bash \
-    XDG_CONFIG_HOME=/tmp/nvim-config EDITOR=nvim
+    XDG_CONFIG_HOME=/opt/nvim-config XDG_DATA_HOME=/opt/nvim-data \
+    XDG_CACHE_HOME=/tmp/nvim-cache NVIM_CONTAINER=1 EDITOR=nvim
 WORKDIR /workspace
 
 FROM base AS prewarm
 COPY prewarm.lua /usr/local/share/nvim-prewarm.lua
+RUN install -d -o 1000 -g 1000 "$XDG_DATA_HOME" /opt/nvim-cache-seed
 USER 1000:1000
-RUN seed="$HOME/.local/share/nvim" \
- && mkdir -p "$XDG_CONFIG_HOME/nvim" \
- && cp -R /usr/local/share/nvim-config/. "$XDG_CONFIG_HOME/nvim/" \
+# Keep installer caches and temporary files out of the dependency layer.
+RUN build_tmp="$(mktemp -d)" \
+ && mkdir "$build_tmp/tmp" \
+ && export TMPDIR="$build_tmp/tmp" XDG_CACHE_HOME="$build_tmp/cache" XDG_STATE_HOME="$build_tmp/state" \
+    npm_config_cache="$build_tmp/npm" NODE_COMPILE_CACHE="$build_tmp/node-compile-cache" \
  && nvim --headless -u NONE -i NONE --cmd 'let g:nvim_image_bootstrap = 1' \
     -c 'luafile /usr/local/share/nvim-prewarm.lua' -c 'qa!' \
  && nvim --headless -i NONE --cmd 'let g:nvim_image_prewarm = 1' \
     -c 'luafile /usr/local/share/nvim-prewarm.lua' -c 'qa!' \
- && cp /proc/sys/kernel/random/uuid "$seed/.image-seed"
+ && rm -r -- "$build_tmp"
 
-FROM base
-COPY --from=prewarm --chown=1000:1000 /home/nvim/.local/share/nvim/ /usr/local/share/nvim-data/
+FROM prewarm
+COPY --chown=1000:1000 warm-filetypes.lua warm-ui.py /usr/local/share/
+# Compile against the final image paths and file timestamps with a UI attached.
+RUN set -eu; \
+    build_cache="$(mktemp -d)"; \
+    export XDG_CACHE_HOME="$build_cache" XDG_STATE_HOME="$build_cache/state"; \
+    python /usr/local/share/warm-ui.py -n -i NONE -c 'luafile /usr/local/share/warm-filetypes.lua'; \
+    test -s "$build_cache/nvim/lazy/pkg-cache.lua"; \
+    test -n "$(find "$build_cache/nvim/luac" -type f -print -quit)"; \
+    tar -cf /opt/nvim-cache-seed/cache.tar -C "$build_cache/nvim" lazy/pkg-cache.lua luac; \
+    rm -r -- "$build_cache"
 COPY entrypoint.sh /usr/local/bin/nvim-entrypoint
-USER 1000:1000
 ENTRYPOINT ["/usr/local/bin/nvim-entrypoint"]
 CMD ["nvim"]
