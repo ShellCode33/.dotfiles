@@ -11,7 +11,7 @@ cache="$XDG_CACHE_HOME/nvim"
 mkdir -p -- "$LLS_LOG_PATH" "$LLS_META_PATH" "$state/swap" "$state/shada" "$cache"
 tar -xf /opt/nvim-cache-seed/cache.tar -C "$cache"
 
-if [ -n "${TERM:-}" ] && ! infocmp -x "$TERM" >/dev/null 2>&1; then
+if [ -n "${TERM:-}" ] && [ "$TERM" != xterm-256color ] && ! infocmp -x "$TERM" >/dev/null 2>&1; then
     export TERM=xterm-256color
 fi
 
