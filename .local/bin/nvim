@@ -282,6 +282,8 @@ def launch(project, command, *, mounts=None):
         "--userns=keep-id:uid=1000,gid=1000",
         "--user=1000:1000",
         "--read-only",
+        # Snacks writes picker history under Neovim's otherwise read-only data directory.
+        "--tmpfs=/opt/nvim-data/nvim/snacks:rw,nosuid,nodev,noexec,mode=1777",
         "--cap-drop=all",
         "--security-opt=no-new-privileges",
         *proxy_network(),
