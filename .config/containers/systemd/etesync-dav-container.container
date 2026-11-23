@@ -17,6 +17,8 @@ DropCapability=all
 
 [Service]
 ExecStartPre=/usr/bin/install -d -m 0700 %h/.local/share/etesync-dav
+# An HTTP response from Radicale is enough to release clients waiting on startup.
+ExecStartPost=/usr/bin/curl --disable --noproxy=* --silent --show-error --output /dev/null --connect-timeout 1 --max-time 2 --retry 15 --retry-delay 1 --retry-max-time 15 --retry-all-errors http://127.0.0.1:37358/
 Restart=on-failure
 RestartSec=5
 TimeoutStartSec=900

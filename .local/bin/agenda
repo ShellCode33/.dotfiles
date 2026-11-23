@@ -14,7 +14,8 @@ case "${1:-summary}" in
         ;;
 esac
 
-if timeout --foreground --kill-after=2s 20s podman exec etesync-dav /usr/local/bin/agenda "$@"; then
+if timeout --foreground --kill-after=2s 30s systemctl --user start etesync-dav-container.service &&
+    timeout --foreground --kill-after=2s 20s podman exec etesync-dav /usr/local/bin/agenda "$@"; then
     exit 0
 fi
 if [ "${1:-summary}" = waybar ]; then
