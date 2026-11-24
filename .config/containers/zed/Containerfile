@@ -1,7 +1,6 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 # Use the base image's live Arch mirrors; keep package signatures enabled.
-# The launcher disables intermediate layers, so this full upgrade always runs.
 RUN pacman -Syu --noconfirm --needed \
     ca-certificates curl git openssh bash python nodejs npm php php-sqlite \
     base-devel cmake rust \

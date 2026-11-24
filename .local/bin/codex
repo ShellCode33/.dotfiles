@@ -92,18 +92,19 @@ def check_sources():
         "entrypoint.sh",
         "inner/containers.conf",
         "inner/storage.conf",
+        "podman.rules",
     ):
         if not (CONTEXT / name).is_file():
             raise FileNotFoundError(f"Required file is missing: {CONTEXT / name}")
 
 
-def build(prepare_only):
+def build(prepare_only, cached=False):
     check_sources()
     ports = proxy_ports()
     command = [
         "build",
-        "--pull=always",
-        "--layers=false",
+        "--pull=missing" if cached else "--pull=always",
+        "--layers=true" if cached else "--layers=false",
         *([proxy_network(ports)] if ports else []),
         "-t",
         IMAGE,
@@ -341,6 +342,9 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     build_parser = commands.add_parser("build", help="build the standalone Codex image")
     build_parser.add_argument("--prepare-only", action="store_true")
+    build_parser.add_argument(
+        "--cached", action="store_true", help="reuse local base images and build layers"
+    )
     commands.add_parser("doctor", help="check the container environment")
     for name, help_text in (
         ("shell", "open a project shell"),
@@ -364,7 +368,7 @@ def main():
     }:
         args = parser.parse_args(arguments)
         if args.command == "build":
-            build(args.prepare_only)
+            build(args.prepare_only, args.cached)
             return
         check_host()
         if args.command == "doctor":

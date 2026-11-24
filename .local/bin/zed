@@ -233,7 +233,7 @@ def lock_artifacts(release):
     }
     write_json(ROOT / "artifacts.lock.json", lock)
     print(
-        "Wrote artifacts.lock.json. Zed, extensions and upstream binaries are locked; Arch packages refresh on every build."
+        "Wrote artifacts.lock.json. Zed, extensions and upstream binaries are locked."
     )
 
 
@@ -251,7 +251,7 @@ def build_directory(preserve=False):
             shutil.rmtree(directory)
 
 
-def build(config, prepare_only=False):
+def build(config, prepare_only=False, cached=False):
     if not (ROOT / "artifacts.lock.json").exists():
         fail(
             "No artifact lock yet. Run zed lock from a host terminal with network access, then zed build."
@@ -308,8 +308,8 @@ def build(config, prepare_only=False):
         command = [
             *PODMAN,
             "build",
-            "--pull=always",
-            "--layers=false",
+            "--pull=missing" if cached else "--pull=always",
+            "--layers=true" if cached else "--layers=false",
             "--http-proxy=true",
             "--build-arg",
             "BASE_IMAGE=" + config["base_image"],
@@ -723,12 +723,17 @@ def main():
         action="store_true",
         help="Prepare a verified build context and print the Podman command",
     )
+    parser.add_argument(
+        "--cached", action="store_true", help="reuse local base images and build layers"
+    )
     args = parser.parse_args(arguments)
+    if args.cached and args.command != "build":
+        parser.error("--cached is only valid with build")
     config = read_json(ROOT / "container.json")
     if args.command == "lock":
         lock_artifacts(args.release)
     elif args.command == "build":
-        build(config, args.prepare_only)
+        build(config, args.prepare_only, args.cached)
     elif args.command == "doctor":
         host_check()
         print(

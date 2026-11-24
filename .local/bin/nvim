@@ -96,7 +96,7 @@ def proxy_network():
     return []
 
 
-def build(prepare_only):
+def build(prepare_only, cached=False):
     check_sources()
     if not prepare_only:
         check_host()
@@ -112,7 +112,10 @@ def build(prepare_only):
             symlinks=True,
             ignore=shutil.ignore_patterns("lazyvim.json"),
         )
-        args = ["build", "--pull=always", *proxy_network(), "-t", IMAGE, str(context)]
+        build_options = (
+            ["--pull=missing", "--layers=true"] if cached else ["--pull=always"]
+        )
+        args = ["build", *build_options, *proxy_network(), "-t", IMAGE, str(context)]
         if prepare_only:
             print(json.dumps({"context": str(context), "command": [*PODMAN, *args]}))
             keep_context = True
@@ -339,6 +342,9 @@ def main():
         "build", help="build the Arch Linux editor image"
     )
     build_parser.add_argument("--prepare-only", action="store_true")
+    build_parser.add_argument(
+        "--cached", action="store_true", help="reuse local base images and build layers"
+    )
     for name, help_text in (
         ("shell", "open a shell in the editor image"),
         ("stop", "stop all editor containers for a project"),
@@ -367,7 +373,7 @@ def main():
     }:
         args = parser.parse_args(editor_args)
         if args.command == "build":
-            build(args.prepare_only)
+            build(args.prepare_only, args.cached)
             return
         if args.command == "doctor":
             check_host()
