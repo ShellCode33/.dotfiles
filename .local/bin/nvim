@@ -83,14 +83,18 @@ def image_exists():
     return result.returncode == 0
 
 
-def proxy_network():
+def proxy_network(extra_variables=()):
     # A proxy on the host's loopback is otherwise unreachable from the container.
     ports = set()
-    for name in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+    variables = ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy")
+    for name in (*variables, *extra_variables):
         value = os.environ.get(name, "")
         proxy = urlsplit(value if "://" in value else f"//{value}")
         if proxy.hostname in {"localhost", "127.0.0.1", "::1"}:
-            ports.add(proxy.port or (443 if proxy.scheme == "https" else 80))
+            default_port = 443 if proxy.scheme == "https" else 80
+            if proxy.scheme.startswith("socks"):
+                default_port = 1080
+            ports.add(proxy.port or default_port)
     if ports:
         return ["--network=pasta:" + ",".join(f"-T,{port}" for port in sorted(ports))]
     return []
@@ -115,7 +119,18 @@ def build(prepare_only, cached=False):
         build_options = (
             ["--pull=missing", "--layers=true"] if cached else ["--pull=always"]
         )
-        args = ["build", *build_options, *proxy_network(), "-t", IMAGE, str(context)]
+        npm_proxy_variables = ()
+        if npm_proxy := os.environ.get("NPM_BUILD_PROXY"):
+            build_options.extend(("--build-arg", f"NPM_BUILD_PROXY={npm_proxy}"))
+            npm_proxy_variables = ("NPM_BUILD_PROXY",)
+        args = [
+            "build",
+            *build_options,
+            *proxy_network(npm_proxy_variables),
+            "-t",
+            IMAGE,
+            str(context),
+        ]
         if prepare_only:
             print(json.dumps({"context": str(context), "command": [*PODMAN, *args]}))
             keep_context = True
@@ -339,7 +354,9 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("doctor", help="check configuration and rootless Podman")
     build_parser = commands.add_parser(
-        "build", help="build the Arch Linux editor image"
+        "build",
+        help="build the Arch Linux editor image",
+        epilog="Set NPM_BUILD_PROXY to override the proxy for npm during builds.",
     )
     build_parser.add_argument("--prepare-only", action="store_true")
     build_parser.add_argument(

@@ -30,7 +30,11 @@ RUN groupadd -g 1000 zed && useradd -m -u 1000 -g 1000 -s /bin/bash zed \
  && setcap cap_setuid=ep /usr/bin/newuidmap \
  && setcap cap_setgid=ep /usr/bin/newgidmap
 COPY tools/ /opt/zed-tools/
-RUN npm ci --prefix /opt/zed-tools --ignore-scripts --no-audit --no-fund \
+ARG NPM_BUILD_PROXY
+RUN if test -n "$NPM_BUILD_PROXY"; then \
+      export npm_config_proxy="$NPM_BUILD_PROXY" npm_config_https_proxy="$NPM_BUILD_PROXY"; \
+    fi \
+ && npm ci --prefix /opt/zed-tools --ignore-scripts --no-audit --no-fund \
  && npm cache clean --force
 COPY artifacts/ /tmp/artifacts/
 COPY unpack.py /tmp/unpack.py

@@ -60,7 +60,7 @@ def output(args):
     return run(args, stdout=subprocess.PIPE, text=True).stdout.strip()
 
 
-def loopback_proxy_ports():
+def loopback_proxy_ports(variables=PROXY_VARIABLES):
     ports = set()
     default_ports = {
         "ftp": 21,
@@ -70,7 +70,7 @@ def loopback_proxy_ports():
         "socks5": 1080,
         "socks5h": 1080,
     }
-    for name in PROXY_VARIABLES:
+    for name in variables:
         if not (value := os.environ.get(name)):
             continue
         proxy = urlsplit(value if "://" in value else f"//{value}")
@@ -314,7 +314,11 @@ def build(config, prepare_only=False, cached=False):
             "--build-arg",
             "BASE_IMAGE=" + config["base_image"],
         ]
-        if ports := loopback_proxy_ports():
+        proxy_variables = PROXY_VARIABLES
+        if npm_proxy := os.environ.get("NPM_BUILD_PROXY"):
+            command.extend(("--build-arg", f"NPM_BUILD_PROXY={npm_proxy}"))
+            proxy_variables = (*proxy_variables, "NPM_BUILD_PROXY")
+        if ports := loopback_proxy_ports(proxy_variables):
             command.append(pasta_network(ports))
         command.extend(["-t", config["image"], str(context)])
         if prepare_only:
@@ -712,7 +716,10 @@ def main():
         arguments[0] not in commands and not arguments[0].startswith("-")
     ):
         arguments.insert(0, "run")
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="Set NPM_BUILD_PROXY to override the proxy for npm during builds.",
+    )
     parser.add_argument("command", choices=sorted(commands))
     parser.add_argument("project", nargs="?", default=".")
     parser.add_argument(
