@@ -1,0 +1,5 @@
+# Rootless Podman needs its own user namespace, writable runtime state, and
+# newuidmap/newgidmap. Run it directly in the outer rootless container.
+host_executable(name = "podman", paths = ["/usr/bin/podman"])
+prefix_rule(pattern = ["podman"], decision = "allow")
+prefix_rule(pattern = ["/usr/bin/podman"], decision = "allow")
