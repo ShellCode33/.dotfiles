@@ -2,14 +2,14 @@
     {
         "id": "neocmakelsp",
         "repo": "Decodetalkers/neocmakelsp",
-        "tag": "v0.8.26",
-        "asset": "neocmakelsp-x86_64-unknown-linux-musl",
+        "tag": "v0.12.0",
+        "asset": "neocmakelsp-x86_64-unknown-linux-musl.tar.gz",
         "destination": "bin/neocmakelsp"
     },
     {
         "id": "phpactor",
         "repo": "phpactor/phpactor",
-        "tag": "2025.10.17.0",
+        "tag": "2026.11.22.0",
         "asset": "phpactor.phar",
         "destination": "lib/phpactor.phar"
     }

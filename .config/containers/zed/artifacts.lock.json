@@ -3,30 +3,24 @@
         {
             "id": "neocmakelsp",
             "repo": "Decodetalkers/neocmakelsp",
-            "tag": "v0.8.26",
-            "asset": "neocmakelsp-x86_64-unknown-linux-musl",
+            "tag": "v0.12.0",
+            "asset": "neocmakelsp-x86_64-unknown-linux-musl.tar.gz",
             "destination": "bin/neocmakelsp",
-            "file": "neocmakelsp-15b1a7716367e918",
-            "sha256": "15b1a7716367e9182bb3f35d14d4a62c9175399599e29f70cba1a9924764ad8c",
-            "url": "https://github.com/neocmakelsp/neocmakelsp/releases/download/v0.8.26/neocmakelsp-x86_64-unknown-linux-musl"
+            "file": "neocmakelsp-df46fd5ff70fdc06",
+            "sha256": "df46fd5ff70fdc061f5666e1a7163fe7a710857d52e179ffe97a7e39d3aac119",
+            "url": "https://github.com/neocmakelsp/neocmakelsp/releases/download/v0.12.0/neocmakelsp-x86_64-unknown-linux-musl.tar.gz"
         },
         {
             "id": "phpactor",
             "repo": "phpactor/phpactor",
-            "tag": "2025.10.17.0",
+            "tag": "2026.11.22.0",
             "asset": "phpactor.phar",
             "destination": "lib/phpactor.phar",
-            "file": "phpactor-13bdb7c639466096",
-            "sha256": "13bdb7c63946609672ff88acc395a4ff90f99b3f28e3b095e190837600e68fa6",
-            "url": "https://github.com/phpactor/phpactor/releases/download/2025.10.17.0/phpactor.phar"
+            "file": "phpactor-1ae84e18348754a9",
+            "sha256": "1ae84e18348754a94ad28b14d3ec341aded0d2c082be61e155bc33fc42690659",
+            "url": "https://github.com/phpactor/phpactor/releases/download/2026.11.22.0/phpactor.phar"
         }
     ],
-    "zed": {
-        "version": "v1.29.2",
-        "url": "https://github.com/zed-industries/zed/releases/download/v1.29.2/zed-linux-x86_64.tar.gz",
-        "file": "zed-3584ba728a182d02.tar.gz",
-        "sha256": "3584ba728a182d0281ffd269361330d077ec9511c537432a7d9142bc76a7ffa2"
-    },
     "extensions": [
         {
             "id": "lua",
