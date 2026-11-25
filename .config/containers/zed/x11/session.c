@@ -39,7 +39,7 @@ static int xerror(Display *d, XErrorEvent *e)
         e->error_code != BadMatch) {
         char message[128];
         XGetErrorText(d, e->error_code, message, sizeof(message));
-        fprintf(stderr, "zed-box: X11 sizing helper: %s\n", message);
+        fprintf(stderr, "zed: X11 sizing helper: %s\n", message);
     }
     return 0;
 }
@@ -141,7 +141,7 @@ int main(int argc, char **argv)
 {
     display = XOpenDisplay(NULL);
     if (!display) {
-        fputs("zed-box: cannot authenticate/connect to the isolated X11 display\n", stderr);
+        fputs("zed: cannot authenticate/connect to the isolated X11 display\n", stderr);
         return 1;
     }
     XSetErrorHandler(xerror);
@@ -168,7 +168,7 @@ int main(int argc, char **argv)
     fcntl(ConnectionNumber(display), F_SETFD, FD_CLOEXEC);
     char **command = calloc((size_t)argc + 2, sizeof(*command));
     if (!command) { perror("calloc"); return 1; }
-    command[0] = "/opt/zed.app/bin/zed";
+    command[0] = "/usr/bin/zeditor";
     command[1] = "--foreground";
     for (int i = 1; i < argc; ++i) command[i + 1] = argv[i];
     pid_t child = fork();
@@ -177,7 +177,7 @@ int main(int argc, char **argv)
         setpgid(0, 0);
         sigprocmask(SIG_SETMASK, &previous, NULL);
         execv(command[0], command);
-        perror("zed-box: launch Zed");
+        perror("zed: launch Zed");
         _exit(127);
     }
     free(command);

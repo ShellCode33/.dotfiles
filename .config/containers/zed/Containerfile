@@ -1,9 +1,8 @@
-ARG BASE_IMAGE
-FROM ${BASE_IMAGE}
+FROM docker.io/library/archlinux:base
 # Use the base image's live Arch mirrors; keep package signatures enabled.
 # Allow slow responses from the build proxy during package downloads.
 RUN pacman -Syu --noconfirm --needed \
-    ca-certificates curl git openssh bash python nodejs npm php php-sqlite \
+    zed ca-certificates curl git openssh bash python nodejs npm php php-sqlite \
     base-devel cmake rust \
     bash-language-server shellcheck pyright ruff rust-analyzer clang \
     dockerfile-language-server yaml-language-server vscode-json-languageserver \
@@ -19,45 +18,52 @@ RUN pacman -Syu --noconfirm --needed \
 RUN /bin/bash -o pipefail -c 'mkdir -p /etc/php/conf.d \
  && for module in curl mbstring iconv zip dom xml xmlreader xmlwriter simplexml sqlite3 pdo_sqlite; do \
       if test -f "/usr/lib/php/modules/$module.so" && ! php -m | grep -Fxiq "$module"; then \
-        printf "extension=%s\n" "$module" >> /etc/php/conf.d/zed-box.ini; \
+        printf "extension=%s\n" "$module" >> /etc/php/conf.d/zed.ini; \
       fi; \
     done'
 # Arch base-image tarballs can strip the capabilities required by nested rootless Podman.
 RUN groupadd -g 1000 zed && useradd -m -u 1000 -g 1000 -s /bin/bash zed \
  && printf 'zed:1:999\nzed:1001:64536\n' > /etc/subuid \
  && printf 'zed:1:999\nzed:1001:64536\n' > /etc/subgid \
- && mkdir -p /var/lib/zed-containers /opt/zed-extensions /etc/zed-box/zed \
+ && mkdir -p /var/lib/zed-containers /opt/zed-extensions /etc/zed/zed \
  && chown 1000:1000 /var/lib/zed-containers \
  && setcap cap_setuid=ep /usr/bin/newuidmap \
  && setcap cap_setgid=ep /usr/bin/newgidmap
 COPY tools/ /opt/zed-tools/
 ARG NPM_BUILD_PROXY
+ARG ZED_REFRESH_NPM_LOCK=0
+WORKDIR /opt/zed-tools
 RUN if test -n "$NPM_BUILD_PROXY"; then \
       export npm_config_proxy="$NPM_BUILD_PROXY" npm_config_https_proxy="$NPM_BUILD_PROXY"; \
     fi \
- && npm ci --prefix /opt/zed-tools --ignore-scripts --no-audit --no-fund \
+ && if test "$ZED_REFRESH_NPM_LOCK" = 1; then \
+      rm package-lock.json \
+      && node -e 'const dependencies = Object.keys(require("./package.json").dependencies); \
+        require("node:child_process").execFileSync("npm", [ \
+          "install", "--package-lock-only", "--save-exact", "--ignore-scripts", "--no-audit", "--no-fund", \
+          ...dependencies.map(name => name + "@latest"), \
+        ], { stdio: "inherit" });'; \
+    fi \
+ && npm ci --ignore-scripts --no-audit --no-fund \
  && npm cache clean --force
 COPY artifacts/ /tmp/artifacts/
 COPY unpack.py /tmp/unpack.py
 RUN python3 /tmp/unpack.py && rm -rf /tmp/artifacts /tmp/unpack.py
-# Match Arch's Compose definitions with its keyboard-handling libraries.
-RUN rm /opt/zed.app/lib/libxkbcommon.so.0 \
-       /opt/zed.app/lib/libxkbcommon-x11.so.0
-COPY zed/ /etc/zed-box/zed/
+COPY zed/ /etc/zed/zed/
 COPY inner/ /etc/containers/
-COPY x11/ /usr/local/lib/zed-box/x11/
-COPY entrypoint.sh /usr/local/lib/zed-box/
+COPY x11/ /usr/local/lib/zed/x11/
+COPY entrypoint.sh /usr/local/lib/zed/
 # Use the loader directly because secure-execution mode can make ldd launch Zed.
-RUN cc -O2 -Wall -Wextra -Werror -o /usr/local/lib/zed-box/x11/session \
-      /usr/local/lib/zed-box/x11/session.c -lX11 -lXrandr \
- && chmod 755 /usr/local/lib/zed-box/*.sh \
- && ln -s /opt/zed.app/bin/zed /usr/local/bin/zed \
- && /usr/bin/ld.so --list /opt/zed.app/libexec/zed-editor > /dev/null
+RUN cc -O2 -Wall -Wextra -Werror -o /usr/local/lib/zed/x11/session \
+      /usr/local/lib/zed/x11/session.c -lX11 -lXrandr \
+ && chmod 755 /usr/local/lib/zed/*.sh \
+ && ln -s /usr/bin/zeditor /usr/local/bin/zed \
+ && /usr/bin/ld.so --list /usr/lib/zed/zed-editor > /dev/null
 ENV HOME=/home/zed USER=zed LOGNAME=zed \
-    XDG_CONFIG_HOME=/etc/zed-box XDG_DATA_HOME=/home/zed/.local/share \
+    XDG_CONFIG_HOME=/etc/zed XDG_DATA_HOME=/home/zed/.local/share \
     XDG_CACHE_HOME=/home/zed/.cache XDG_RUNTIME_DIR=/tmp/run-1000 \
     PATH=/opt/zed-tools/bin:/opt/zed-tools/node_modules/.bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin \
     SHELL=/bin/bash
 WORKDIR /workspace
 USER 1000:1000
-ENTRYPOINT ["/usr/local/lib/zed-box/entrypoint.sh"]
+ENTRYPOINT ["/usr/local/lib/zed/entrypoint.sh"]

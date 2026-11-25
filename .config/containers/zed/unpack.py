@@ -9,7 +9,7 @@ from pathlib import Path
 
 root = Path("/tmp/artifacts")
 lock = json.loads((root / "artifacts.lock.json").read_text())
-for item in [lock["zed"], *lock["extensions"], *lock["tools"]]:
+for item in [*lock["extensions"], *lock["tools"]]:
     archive = root / item["file"]
     with archive.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
@@ -21,17 +21,26 @@ for item in [lock["zed"], *lock["extensions"], *lock["tools"]]:
             raise SystemExit("Invalid tool destination")
         dest = Path("/opt/zed-tools") / relative
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(archive, dest)
+        if item["asset"].endswith(".tar.gz"):
+            # Copy the executable alone. Archive paths and links are never installed.
+            with tarfile.open(archive, mode="r:gz") as tar:
+                matches = [
+                    member for member in tar if Path(member.name).name == dest.name
+                ]
+                if len(matches) != 1 or not matches[0].isfile():
+                    raise SystemExit(
+                        f"Expected one regular {dest.name} in {archive.name}"
+                    )
+                with tar.extractfile(matches[0]) as source, dest.open("wb") as target:
+                    shutil.copyfileobj(source, target)
+        else:
+            shutil.copyfile(archive, dest)
         dest.chmod(0o755 if relative.parts[0] == "bin" else 0o644)
         continue
-    if item is lock["zed"]:
-        dest = Path("/opt")
-    else:
-        dest = Path("/opt/zed-extensions") / item["id"]
+    dest = Path("/opt/zed-extensions") / item["id"]
     dest.mkdir(parents=True, exist_ok=True)
     with tarfile.open(archive) as tar:
         tar.extractall(dest, filter="data")
-    if item in lock["extensions"]:
-        manifest = tomllib.loads((dest / "extension.toml").read_text())
-        assert manifest["id"] == item["id"]
-        assert manifest["version"] == item["version"]
+    manifest = tomllib.loads((dest / "extension.toml").read_text())
+    assert manifest["id"] == item["id"]
+    assert manifest["version"] == item["version"]

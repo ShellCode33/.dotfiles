@@ -14,7 +14,7 @@ shader_cache=/var/lib/zed-containers/shader-cache
 if [ -w /var/lib/zed-containers ] && mkdir -p "$shader_cache"; then
     export MESA_SHADER_CACHE_DIR="$shader_cache"
 fi
-if [ "${ZED_BOX_SOFTWARE_RENDERING:-0}" = 1 ]; then
+if [ "${ZED_SOFTWARE_RENDERING:-0}" = 1 ]; then
     export LIBGL_ALWAYS_SOFTWARE=true
     for driver in /usr/share/vulkan/icd.d/lvp_icd*.json; do
         if [ -f "$driver" ]; then
@@ -25,6 +25,6 @@ if [ "${ZED_BOX_SOFTWARE_RENDERING:-0}" = 1 ]; then
     export ZED_ALLOW_EMULATED_GPU=1
 fi
 if [ "${XDG_SESSION_TYPE:-}" = x11 ]; then
-    exec dbus-run-session -- /usr/local/lib/zed-box/x11/session "$@"
+    exec dbus-run-session -- /usr/local/lib/zed/x11/session "$@"
 fi
-exec dbus-run-session -- /opt/zed.app/bin/zed --foreground "$@"
+exec dbus-run-session -- /usr/bin/zeditor --foreground "$@"

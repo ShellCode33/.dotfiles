@@ -23,9 +23,11 @@ from urllib.parse import urlsplit
 CONFIG_HOME = Path.home() / ".config"
 ROOT = CONFIG_HOME / "containers/zed"
 ZED_CONFIG = CONFIG_HOME / "zed"
-CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "zed-box"
+CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "zed"
 ARTIFACTS = CACHE / "artifacts"
-CONTAINER_HOSTNAME = "zed-box"
+CONTAINER_HOSTNAME = "zed"
+IMAGE = "localhost/zed:local"
+XEPHYR_SCREEN = "1600x1000"
 PODMAN = ("podman", "--remote=false")
 TOOL_RELEASE_KEYS = ("id", "repo", "tag", "asset", "destination")
 TOOL_MANIFESTS = ("package.json", "package-lock.json", "releases.json")
@@ -98,7 +100,7 @@ def fetch(url, path):
     if not url.startswith("https://"):
         fail("Downloads must use HTTPS")
     print(f"Downloading {url}", flush=True)
-    request = Request(url, headers={"User-Agent": "zed-box"})
+    request = Request(url, headers={"User-Agent": "zed"})
     temporary = Path(str(path) + ".part")
     try:
         with (
@@ -141,7 +143,14 @@ def lock_tool_binaries(declarations, *, upgrade=False):
             metadata_path,
         )
         metadata = read_json(metadata_path)
-        asset = next(a for a in metadata["assets"] if a["name"] == tool["asset"])
+        asset_names = [tool["asset"]]
+        if (
+            upgrade
+            and tool["id"] == "neocmakelsp"
+            and not tool["asset"].endswith(".tar.gz")
+        ):
+            asset_names.append(tool["asset"] + ".tar.gz")
+        asset = release_asset(metadata, tool["repo"], asset_names)
         expected = asset.get("digest", "")
         if not re.fullmatch(r"sha256:[0-9a-f]{64}", expected or ""):
             fail(f"Release has no GitHub SHA256 digest for {tool['id']}")
@@ -155,6 +164,7 @@ def lock_tool_binaries(declarations, *, upgrade=False):
             dict(
                 tool,
                 tag=metadata["tag_name"] if upgrade else tool["tag"],
+                asset=asset["name"],
                 file=filename,
                 sha256=expected[7:],
                 url=asset["browser_download_url"],
@@ -163,34 +173,22 @@ def lock_tool_binaries(declarations, *, upgrade=False):
     return tools
 
 
-def resolve_artifacts(release, tools, *, upgrade=False):
+def release_asset(metadata, repository, names):
+    assets = {asset["name"]: asset for asset in metadata["assets"]}
+    for name in names:
+        if name in assets:
+            return assets[name]
+    fail(
+        f"{repository} release {metadata['tag_name']} is missing asset: {' or '.join(names)}"
+    )
+
+
+def resolve_artifacts(tools, *, upgrade=False):
     import tomllib
 
     if platform.machine() != "x86_64":
-        fail("The declared Zed and tool release assets require an x86_64 host.")
+        fail("The declared tool release assets require an x86_64 host.")
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
-    endpoint = "latest" if release == "latest" else "tags/" + release
-    if not re.fullmatch(r"[a-zA-Z0-9._-]+", release):
-        fail("Invalid release tag")
-    metadata_path = ARTIFACTS / "release.json"
-    fetch(
-        "https://api.github.com/repos/zed-industries/zed/releases/" + endpoint,
-        metadata_path,
-    )
-    metadata = read_json(metadata_path)
-    asset = next(
-        a for a in metadata["assets"] if a["name"] == "zed-linux-x86_64.tar.gz"
-    )
-    expected = asset.get("digest", "")
-    if not re.fullmatch(r"sha256:[0-9a-f]{64}", expected or ""):
-        fail(
-            "Release has no GitHub SHA256 digest; refusing an unverified editor download."
-        )
-    filename = f"zed-{expected[7:23]}.tar.gz"
-    if not (ARTIFACTS / filename).exists() or sha(ARTIFACTS / filename) != expected[7:]:
-        fetch(asset["browser_download_url"], ARTIFACTS / filename)
-    if sha(ARTIFACTS / filename) != expected[7:]:
-        fail("Zed release digest mismatch")
     extensions = []
     for extension in declared_extensions():
         if not re.fullmatch(r"[a-z0-9_-]+", extension):
@@ -227,21 +225,15 @@ def resolve_artifacts(release, tools, *, upgrade=False):
         )
     return {
         "tools": lock_tool_binaries(tools, upgrade=upgrade),
-        "zed": {
-            "version": metadata["tag_name"],
-            "url": asset["browser_download_url"],
-            "file": f"zed-{expected[7:23]}.tar.gz",
-            "sha256": expected[7:],
-        },
         "extensions": extensions,
     }
 
 
-def lock_artifacts(release):
+def lock_artifacts():
     tools = read_json(ROOT / "tools/releases.json")
-    write_json(ROOT / "artifacts.lock.json", resolve_artifacts(release, tools))
+    write_json(ROOT / "artifacts.lock.json", resolve_artifacts(tools))
     print(
-        "Wrote artifacts.lock.json. Zed, extensions and upstream binaries are locked."
+        "Wrote artifacts.lock.json. Extensions and upstream language tools are locked."
     )
 
 
@@ -259,7 +251,7 @@ def build_directory(preserve=False):
             shutil.rmtree(directory)
 
 
-def build(config, prepare_only=False, *, upgraded_sources=None):
+def build(prepare_only=False, *, upgraded_sources=None):
     sources = upgraded_sources or ROOT
     if not (sources / "artifacts.lock.json").exists():
         fail(
@@ -285,8 +277,9 @@ def build(config, prepare_only=False, *, upgraded_sources=None):
                 ignore=shutil.ignore_patterns("node_modules", "__pycache__"),
             )
         if upgraded_sources:
-            for name in TOOL_MANIFESTS:
-                shutil.copy2(sources / "tools" / name, context / "tools" / name)
+            shutil.copy2(
+                sources / "tools/releases.json", context / "tools/releases.json"
+            )
         (context / "zed").mkdir()
         settings = merge_settings(
             read_json(ZED_CONFIG / "settings.json"),
@@ -309,7 +302,7 @@ def build(config, prepare_only=False, *, upgraded_sources=None):
         shutil.copy2(
             sources / "artifacts.lock.json", context / "artifacts/artifacts.lock.json"
         )
-        for item in [lock["zed"], *lock["extensions"], *lock["tools"]]:
+        for item in [*lock["extensions"], *lock["tools"]]:
             source = ARTIFACTS / item["file"]
             if not source.exists() and "url" in item:
                 fetch(item["url"], source)
@@ -321,13 +314,11 @@ def build(config, prepare_only=False, *, upgraded_sources=None):
             "build",
             "--layers=true",
             *(
-                ["--pull=always", "--no-cache"]
+                ["--pull=always", "--no-cache", "--build-arg", "ZED_REFRESH_NPM_LOCK=1"]
                 if upgraded_sources
                 else ["--pull=missing"]
             ),
             "--http-proxy=true",
-            "--build-arg",
-            "BASE_IMAGE=" + config["base_image"],
         ]
         proxy_variables = PROXY_VARIABLES
         if npm_proxy := os.environ.get("NPM_BUILD_PROXY"):
@@ -335,71 +326,48 @@ def build(config, prepare_only=False, *, upgraded_sources=None):
             proxy_variables = (*proxy_variables, "NPM_BUILD_PROXY")
         if ports := loopback_proxy_ports(proxy_variables):
             command.append(pasta_network(ports))
-        command.extend(["-t", config["image"], str(context)])
+        if upgraded_sources:
+            command.extend(["--iidfile", str(sources / "image-id")])
+        else:
+            command.extend(["-t", IMAGE])
+        command.append(str(context))
         if prepare_only:
             print(json.dumps({"context": str(context), "command": command}))
         else:
             run(command)
 
 
-def upgrade(config):
+def upgrade():
     check_local_host()
     with tempfile.TemporaryDirectory(prefix=".upgrade-", dir=ROOT) as directory:
         sources = Path(directory)
         tools = sources / "tools"
         tools.mkdir()
-        lock = resolve_artifacts(
-            "latest", read_json(ROOT / "tools/releases.json"), upgrade=True
-        )
+        lock = resolve_artifacts(read_json(ROOT / "tools/releases.json"), upgrade=True)
         write_json(sources / "artifacts.lock.json", lock)
         write_json(
             tools / "releases.json",
             [{key: tool[key] for key in TOOL_RELEASE_KEYS} for tool in lock["tools"]],
         )
 
-        package = read_json(ROOT / "tools/package.json")
-        write_json(tools / "package.json", package)
-        # Resolve every direct dependency at its latest release and regenerate
-        # the transitive lock in an empty directory using Arch's npm.
-        npm_proxy = os.environ.get("NPM_BUILD_PROXY")
-        proxy_variables = (*PROXY_VARIABLES, "NPM_BUILD_PROXY")
-        ports = loopback_proxy_ports(proxy_variables)
-        proxy_options = []
-        if npm_proxy:
-            proxy_options = [
-                "--env",
-                f"npm_config_proxy={npm_proxy}",
-                "--env",
-                f"npm_config_https_proxy={npm_proxy}",
-            ]
-        run(
-            [
-                *PODMAN,
-                "run",
-                "--rm",
-                "--pull=always",
-                "--http-proxy=true",
-                "--userns=host",
-                "--user=0:0",
-                *([pasta_network(ports)] if ports else []),
-                *proxy_options,
-                "--volume",
-                f"{tools}:/tools:Z",
-                "--workdir",
-                "/tools",
-                "--entrypoint=/bin/sh",
-                config["base_image"],
-                "-ec",
-                "pacman -Syu --noconfirm --needed npm && exec npm install --package-lock-only "
-                '--save-exact --ignore-scripts --no-audit --no-fund "$@"',
-                "zed-upgrade",
-                *(f"{name}@latest" for name in package["dependencies"]),
-            ]
-        )
+        build(upgraded_sources=sources)
+        image = (sources / "image-id").read_text().strip()
         for name in ("package.json", "package-lock.json"):
-            manifest = tools / name
-            write_json(manifest, read_json(manifest))
-        build(config, upgraded_sources=sources)
+            manifest = output(
+                [
+                    *PODMAN,
+                    "run",
+                    "--rm",
+                    "--network=none",
+                    "--pull=never",
+                    "--read-only",
+                    "--entrypoint=/usr/bin/cat",
+                    image,
+                    f"/opt/zed-tools/{name}",
+                ]
+            )
+            write_json(tools / name, json.loads(manifest))
+        run([*PODMAN, "tag", image, IMAGE])
         for name in TOOL_MANIFESTS:
             (tools / name).replace(ROOT / "tools" / name)
         (sources / "artifacts.lock.json").replace(ROOT / "artifacts.lock.json")
@@ -430,7 +398,7 @@ def project_path(value):
 
 
 def identity(project):
-    return "zed-box-" + hashlib.sha256(str(project).encode()).hexdigest()[:16]
+    return "zed-" + hashlib.sha256(str(project).encode()).hexdigest()[:16]
 
 
 def container_project_path(project):
@@ -513,10 +481,9 @@ def run_editor(args, image, *command):
         raise
 
 
-def base_command(config, project, name, temporary):
+def base_command(project, name, temporary):
     destination = container_project_path(project)
-    forward_proxy = config.get("forward_proxy", False)
-    ports = loopback_proxy_ports() if forward_proxy else []
+    ports = loopback_proxy_ports()
     args = [
         *PODMAN,
         "run",
@@ -537,7 +504,7 @@ def base_command(config, project, name, temporary):
         "--device=/dev/net/tun",
         pasta_network(ports),
         "--hosts-file=none",
-        "--http-proxy=" + str(forward_proxy).lower(),
+        "--http-proxy=true",
         "--mount=type=tmpfs,destination=/home/zed,tmpfs-mode=0700,tmpfs-size=4294967296,U=true,exec,nosuid,nodev",
         "--tmpfs=/tmp:rw,exec,nosuid,nodev,mode=1777,size=4g",
         "--shm-size=512m",
@@ -565,29 +532,16 @@ def base_command(config, project, name, temporary):
     # SELinux labeling can block nested mounts; the host determines LSM policy.
     if Path("/sys/fs/selinux/enforce").exists():
         args.append("--security-opt=label=disable")
-    for mapping in config["publish"]:
-        if not re.fullmatch(r"127\.0\.0\.1:\d{1,5}:\d{1,5}(?:/(?:tcp|udp))?", mapping):
-            fail(
-                "Published ports must explicitly bind 127.0.0.1, e.g. 127.0.0.1:3000:3000"
-            )
-        args.extend(["--publish", mapping])
     return args
 
 
-def display_mode(config):
-    mode = config["display"]
-    if mode == "auto":
-        mode = (
-            "wayland"
-            if os.environ.get("WAYLAND_DISPLAY")
-            or os.environ.get("XDG_SESSION_TYPE") == "wayland"
-            else "xephyr"
-        )
-    if mode not in {"wayland", "xephyr"}:
-        fail(
-            "display must be auto, wayland or xephyr; direct host X11 sharing is intentionally unsupported."
-        )
-    return mode
+def display_mode():
+    if (
+        os.environ.get("WAYLAND_DISPLAY")
+        or os.environ.get("XDG_SESSION_TYPE") == "wayland"
+    ):
+        return "wayland"
+    return "xephyr"
 
 
 def wayland_socket():
@@ -610,8 +564,8 @@ def wayland_socket():
     return socket
 
 
-def display_check(config):
-    mode = display_mode(config)
+def display_check():
+    mode = display_mode()
     if mode == "wayland":
         wayland_socket()
     else:
@@ -623,15 +577,11 @@ def display_check(config):
     return mode
 
 
-def render_options(config, mode):
-    devices = (
-        sorted(Path("/dev/dri").glob("renderD*"))
-        if config.get("gpu") and mode == "wayland"
-        else []
-    )
+def render_options(mode):
+    devices = sorted(Path("/dev/dri").glob("renderD*")) if mode == "wayland" else []
     if devices:
         return ["--device=" + str(device) for device in devices]
-    return ["--env=ZED_BOX_SOFTWARE_RENDERING=1"]
+    return ["--env=ZED_SOFTWARE_RENDERING=1"]
 
 
 def create_xauthority(cookie, display):
@@ -652,8 +602,8 @@ def create_xauthority(cookie, display):
 
 
 @contextlib.contextmanager
-def display_options(config):
-    mode = display_check(config)
+def display_options():
+    mode = display_check()
     if mode == "wayland":
         socket = wayland_socket()
         # Mount outside XDG_RUNTIME_DIR: OCI-created parent directories would
@@ -693,7 +643,7 @@ def display_options(config):
                     "-displayfd",
                     str(write_fd),
                     "-screen",
-                    config["xephyr_screen"],
+                    XEPHYR_SCREEN,
                     "-resizeable",
                     "-title",
                     "Zed — isolated display",
@@ -736,7 +686,7 @@ def display_options(config):
                 "--env=DISPLAY=" + display,
                 "--env=XAUTHORITY=/tmp/zed.Xauthority",
                 "--env=XDG_SESSION_TYPE=x11",
-                "--env=ZED_BOX_SOFTWARE_RENDERING=1",
+                "--env=ZED_SOFTWARE_RENDERING=1",
             ]
         except subprocess.CalledProcessError as error:
             if error.returncode != os.EX_IOERR:
@@ -769,7 +719,7 @@ def display_options(config):
             log.close()
 
 
-def launch(config, project, action):
+def launch(project, action):
     check_local_host()
     name = identity(project)
     if action == "stop":
@@ -796,14 +746,14 @@ def launch(config, project, action):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             fail("This project is starting or stopping. Retry in a moment.")
-        args = base_command(config, project, name, Path(temporary))
+        args = base_command(project, name, Path(temporary))
         if action == "shell":
             args.append("-it")
-            run_editor(args, config["image"], "--shell")
+            run_editor(args, IMAGE, "--shell")
             return
-        with display_options(config) as display:
-            args.extend(render_options(config, display_mode(config)))
-            run_editor(args + display, config["image"], container_project_path(project))
+        with display_options() as display:
+            args.extend(render_options(display_mode()))
+            run_editor(args + display, IMAGE, container_project_path(project))
 
 
 def main():
@@ -821,9 +771,6 @@ def main():
     parser.add_argument("command", choices=sorted(commands))
     parser.add_argument("project", nargs="?", default=".")
     parser.add_argument(
-        "--release", default="latest", help="Zed tag for the lock command"
-    )
-    parser.add_argument(
         "--prepare-only",
         action="store_true",
         help="Prepare a verified build context and print the Podman command",
@@ -831,25 +778,24 @@ def main():
     args = parser.parse_args(arguments)
     if args.prepare_only and args.command != "build":
         parser.error("--prepare-only is only valid with build")
-    config = read_json(ROOT / "container.json")
     if args.command in {"lock", "build", "upgrade"}:
         CACHE.mkdir(parents=True, exist_ok=True)
         with (CACHE / "build.lock").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             if args.command == "lock":
-                lock_artifacts(args.release)
+                lock_artifacts()
             elif args.command == "build":
-                build(config, args.prepare_only)
+                build(args.prepare_only)
             else:
-                upgrade(config)
+                upgrade()
     elif args.command == "doctor":
         host_check()
         print(
             "Host rootless Podman, pasta, subordinate IDs, FUSE and TUN prerequisites passed."
         )
-        print(f"Display prerequisites passed: {display_check(config)}.")
+        print(f"Display prerequisites passed: {display_check()}.")
     else:
-        launch(config, project_path(args.project), args.command)
+        launch(project_path(args.project), args.command)
 
 
 if __name__ == "__main__":
@@ -860,7 +806,6 @@ if __name__ == "__main__":
         OSError,
         ValueError,
         KeyError,
-        StopIteration,
         tarfile.TarError,
         subprocess.CalledProcessError,
     ) as exc:

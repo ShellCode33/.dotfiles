@@ -1,9 +1,0 @@
-{
-    "image": "localhost/zed-box:local",
-    "base_image": "docker.io/library/archlinux:base",
-    "display": "auto",
-    "xephyr_screen": "1600x1000",
-    "gpu": true,
-    "publish": [],
-    "forward_proxy": true
-}
