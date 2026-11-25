@@ -15,12 +15,22 @@
 #include <string.h>
 #include <sys/signalfd.h>
 #include <sys/wait.h>
+#include <sysexits.h>
 #include <unistd.h>
 
 static Display *display;
 static Window root;
 static Atom window_type, normal_type, active_window, protocols, take_focus;
 static unsigned int width, height;
+static pid_t editor;
+
+static int display_lost(Display *d)
+{
+    (void)d;
+    if (editor > 0) kill(-editor, SIGTERM);
+    /* The host launcher checks whether Xephyr shut down cleanly. */
+    _exit(EX_IOERR);
+}
 
 static int xerror(Display *d, XErrorEvent *e)
 {
@@ -135,6 +145,7 @@ int main(int argc, char **argv)
         return 1;
     }
     XSetErrorHandler(xerror);
+    XSetIOErrorHandler(display_lost);
     root = DefaultRootWindow(display);
     window_type = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
     normal_type = XInternAtom(display, "_NET_WM_WINDOW_TYPE_NORMAL", False);
@@ -171,6 +182,7 @@ int main(int argc, char **argv)
     }
     free(command);
     setpgid(child, child);
+    editor = child;
     struct pollfd fds[] = {{ConnectionNumber(display), POLLIN, 0}, {signal_fd, POLLIN, 0}};
     for (;;) {
         while (XPending(display)) {
@@ -208,6 +220,7 @@ int main(int argc, char **argv)
             if (info.ssi_signo == SIGCHLD) {
                 int status;
                 if (waitpid(child, &status, WNOHANG) == child) {
+                    editor = 0;
                     close(signal_fd);
                     XCloseDisplay(display);
                     return WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);

@@ -465,8 +465,10 @@ def base_command(config, project, name, temporary):
         "--shm-size=512m",
         "--workdir",
         destination,
+        # The image seeds this directory for UID/GID 1000. Keep the ownership
+        # of files created by the nested Podman engine inside it.
         "--volume",
-        name + "-storage:/var/lib/zed-containers:U",
+        name + "-storage:/var/lib/zed-containers",
         *project_mounts(project),
     ]
     if ports:
@@ -658,11 +660,26 @@ def display_options(config):
                 "--env=XDG_SESSION_TYPE=x11",
                 "--env=ZED_BOX_SOFTWARE_RENDERING=1",
             ]
+        except subprocess.CalledProcessError as error:
+            if error.returncode != os.EX_IOERR:
+                raise
+            # Closing Xephyr's outer window disconnects its clients before
+            # the server process has necessarily finished exiting.
+            try:
+                status = process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                fail("Lost the isolated X11 connection while Xephyr was still running")
+            if status:
+                log.seek(0)
+                details = log.read().strip()
+                # Xephyr exits 1 when the host window manager kills its X client.
+                if status != 1 or "Fatal server error" in details:
+                    fail(f"Xephyr exited unexpectedly with status {status}\n{details}".rstrip())
         finally:
             os.close(read_fd)
             if write_fd != -1:
                 os.close(write_fd)
-            if process is not None:
+            if process is not None and process.poll() is None:
                 process.terminate()
                 try:
                     process.wait(timeout=5)
