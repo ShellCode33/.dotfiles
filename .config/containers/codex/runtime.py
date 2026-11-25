@@ -2,8 +2,6 @@
 
 import fcntl
 import os
-import signal
-import socket
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -49,37 +47,8 @@ def link_credentials(home):
             staging.replace(link)
 
 
-def run_in_foreground(command, control):
-    # The extra process group lets Codex's SIGTSTP take effect inside the PID namespace.
-    pid = os.fork()
-    if pid == 0:
-        control.close()
-        os.setpgid(0, 0)
-        previous = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
-        os.tcsetpgrp(0, os.getpgrp())
-        signal.signal(signal.SIGTTOU, previous)
-        # Podman passes a blocked job-control signal mask to the container.
-        signal.pthread_sigmask(
-            signal.SIG_UNBLOCK, (signal.SIGTSTP, signal.SIGTTIN, signal.SIGTTOU)
-        )
-        os.execvp(command[0], command)
-
-    while True:
-        _, status = os.waitpid(pid, os.WUNTRACED)
-        if not os.WIFSTOPPED(status):
-            return os.waitstatus_to_exitcode(status)
-        try:
-            control.sendall(b"s")
-            if control.recv(1) == b"r":
-                os.killpg(pid, signal.SIGCONT)
-                continue
-        except (BrokenPipeError, ConnectionResetError):
-            pass
-        os.killpg(pid, signal.SIGKILL)
-
-
 def main():
-    *command, descriptor = sys.argv[1:]
+    command = sys.argv[1:]
     if command[:2] == ["/usr/bin/codex", "logout"]:
         # Codex removes auth.json itself during logout, so give it the shared directory.
         os.environ["CODEX_HOME"] = str(AUTH_HOME)
@@ -87,11 +56,7 @@ def main():
         home = Path(os.environ["CODEX_HOME"])
         migrate_daemon_selection(home)
         link_credentials(home)
-    if descriptor == "-1":
-        os.execvp(command[0], command)
-    with socket.socket(fileno=int(descriptor)) as control:
-        status = run_in_foreground(command, control)
-        sys.exit(128 - status if status < 0 else status)
+    os.execvp(command[0], command)
 
 
 if __name__ == "__main__":

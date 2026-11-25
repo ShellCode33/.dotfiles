@@ -1,6 +1,7 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 # Use the base image's live Arch mirrors; keep package signatures enabled.
+# Allow slow responses from the build proxy during package downloads.
 RUN pacman -Syu --noconfirm --needed \
     ca-certificates curl git openssh bash python nodejs npm php php-sqlite \
     base-devel cmake rust \
@@ -46,13 +47,12 @@ COPY zed/ /etc/zed-box/zed/
 COPY inner/ /etc/containers/
 COPY x11/ /usr/local/lib/zed-box/x11/
 COPY entrypoint.sh /usr/local/lib/zed-box/
+# Use the loader directly because secure-execution mode can make ldd launch Zed.
 RUN cc -O2 -Wall -Wextra -Werror -o /usr/local/lib/zed-box/x11/session \
       /usr/local/lib/zed-box/x11/session.c -lX11 -lXrandr \
  && chmod 755 /usr/local/lib/zed-box/*.sh \
  && ln -s /opt/zed.app/bin/zed /usr/local/bin/zed \
- && ldd /opt/zed.app/libexec/zed-editor > /tmp/zed-libraries \
- && ! grep 'not found' /tmp/zed-libraries \
- && rm /tmp/zed-libraries
+ && /usr/bin/ld.so --list /opt/zed.app/libexec/zed-editor > /dev/null
 ENV HOME=/home/zed USER=zed LOGNAME=zed \
     XDG_CONFIG_HOME=/etc/zed-box XDG_DATA_HOME=/home/zed/.local/share \
     XDG_CACHE_HOME=/home/zed/.cache XDG_RUNTIME_DIR=/tmp/run-1000 \

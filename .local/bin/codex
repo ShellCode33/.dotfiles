@@ -6,12 +6,10 @@ import hashlib
 import json
 import os
 import pwd
+import runpy
 import shutil
-import signal
-import socket
 import subprocess
 import sys
-import termios
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -23,6 +21,7 @@ CONTAINER_HOME = "/home/codex"
 WORKSPACE = Path("/workspace")
 EXTRA_MOUNTS = Path("/mnt/codex")
 AUTH_MOUNT = "/run/codex-auth"
+JOB_CONTROL = runpy.run_path(str(CONTEXT.parent / "job_control.py"))
 
 
 def podman(*args, **kwargs):
@@ -246,56 +245,6 @@ def doctor():
         print("Run `codex build` to create the image.")
 
 
-def has_job_control():
-    if not (sys.stdin.isatty() and sys.stdout.isatty()):
-        return False
-    group = os.getpgrp()
-    parent = os.getppid()
-    try:
-        return (
-            os.tcgetpgrp(0) == group
-            and os.getsid(parent) == os.getsid(0)
-            and os.getpgid(parent) != group
-        )
-    except OSError:
-        return False
-
-
-def run_with_job_control(args, command):
-    terminal = termios.tcgetattr(0)
-    host, container = socket.socketpair()
-    with host, container:
-        descriptor = container.fileno()
-        process = subprocess.Popen(
-            [
-                "podman",
-                *args,
-                f"--preserve-fd={descriptor}",
-                IMAGE,
-                *command,
-                str(descriptor),
-            ],
-            pass_fds=(descriptor,),
-        )
-        container.close()
-        try:
-            while host.recv(1) == b"s":
-                raw_terminal = termios.tcgetattr(0)
-                termios.tcsetattr(0, termios.TCSADRAIN, terminal)
-                # fg resumes Podman and this launcher in the same shell job.
-                while True:
-                    os.killpg(os.getpgrp(), signal.SIGSTOP)
-                    if os.tcgetpgrp(0) == os.getpgrp():
-                        break
-                termios.tcsetattr(0, termios.TCSADRAIN, raw_terminal)
-                host.sendall(b"r")
-        finally:
-            host.close()
-            termios.tcsetattr(0, termios.TCSADRAIN, terminal)
-        status = process.wait()
-        sys.exit(128 - status if status < 0 else status)
-
-
 def launch(project, command, *, mounts=None):
     if not image_exists(IMAGE):
         raise RuntimeError("Codex image is missing. Run `codex build` first.")
@@ -327,9 +276,12 @@ def launch(project, command, *, mounts=None):
     for source, destination in (mounts or {}).items():
         args.extend(("--volume", f"{source}:{destination}:rw"))
     runtime = ["python", "-c", (CONTEXT / "runtime.py").read_text(encoding="utf-8")]
-    if command[0] == "/usr/bin/codex" and has_job_control():
-        run_with_job_control(args, [*runtime, *command])
-    os.execvp("podman", ["podman", *args, IMAGE, *runtime, *command, "-1"])
+    if command[0] == "/usr/bin/codex" and JOB_CONTROL["has_job_control"]():
+        status = JOB_CONTROL["run_podman"](
+            ["podman", *args], IMAGE, [*runtime, *command], job_control=True
+        )
+        sys.exit(128 - status if status < 0 else status)
+    os.execvp("podman", ["podman", *args, IMAGE, *runtime, *command])
 
 
 def main():

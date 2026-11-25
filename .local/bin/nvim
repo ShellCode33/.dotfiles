@@ -5,8 +5,8 @@ import argparse
 import hashlib
 import json
 import os
+import runpy
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
@@ -22,6 +22,7 @@ PODMAN = ("podman", "--remote=false")
 WORKSPACE = Path("/workspace")
 EXTRA_MOUNTS = Path("/mnt/nvim")
 PROJECT_LABEL = "io.dotfiles.nvim.project"
+JOB_CONTROL = runpy.run_path(str(CONTAINER.parent / "job_control.py"))
 BUILD_FILES = (
     "Containerfile",
     "entrypoint.sh",
@@ -323,23 +324,19 @@ def launch(project, command, *, mounts=None):
     if mounts or project is not None:
         if Path("/sys/fs/selinux/enforce").exists():
             args.append("--security-opt=label=disable")
-    # Keep the terminal attached and check for a missing image only if Podman fails.
-    with subprocess.Popen([*args, IMAGE, *command]) as process:
-
-        def forward_signal(signum, _frame):
-            process.send_signal(signum)
-
-        previous_handlers = {
-            signum: signal.signal(signum, forward_signal)
-            for signum in (signal.SIGHUP, signal.SIGTERM)
-        }
-        try:
-            status = process.wait()
-        finally:
-            for signum, handler in previous_handlers.items():
-                signal.signal(signum, handler)
-            if container is not None:
-                remove_editor_in_background(container)
+    job_control = (
+        container is not None
+        and JOB_CONTROL["has_job_control"]()
+        and shutil.which("crun") is not None
+    )
+    if job_control:
+        args.append("--runtime=crun")
+    # Check for a missing image only if Podman fails.
+    try:
+        status = JOB_CONTROL["run_podman"](args, IMAGE, command, job_control=job_control)
+    finally:
+        if container is not None:
+            remove_editor_in_background(container)
     if status == 125 and not image_exists():
         raise RuntimeError("Editor image is missing. Run `nvim build` first.")
     sys.exit(status if status >= 0 else 128 - status)
