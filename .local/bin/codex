@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 CONTEXT = Path(__file__).resolve().parents[2] / ".config/containers/codex"
 NESTING_SECCOMP = CONTEXT.parent / "zed/seccomp-nesting.json"
 IMAGE = "localhost/codex:local"
+PODMAN = ("podman", "--remote=false")
 PROJECT_LABEL = "io.dotfiles.codex.project"
 CONTAINER_HOME = "/home/codex"
 WORKSPACE = Path("/workspace")
@@ -25,14 +26,18 @@ JOB_CONTROL = runpy.run_path(str(CONTEXT.parent / "job_control.py"))
 
 
 def podman(*args, **kwargs):
-    return subprocess.run(["podman", *args], check=True, **kwargs)
+    return subprocess.run([*PODMAN, *args], check=True, **kwargs)
 
 
-def check_host():
+def check_local_host():
     if os.getuid() == 0:
         raise RuntimeError("Run as your normal user.")
     if not shutil.which("podman"):
         raise RuntimeError("Install Podman first.")
+
+
+def check_host():
+    check_local_host()
     info = podman(
         "info", "--format", "{{.Host.Security.Rootless}}", stdout=subprocess.PIPE
     )
@@ -41,7 +46,7 @@ def check_host():
 
 
 def image_exists(image):
-    result = subprocess.run(["podman", "image", "exists", image], check=False)
+    result = subprocess.run([*PODMAN, "image", "exists", image], check=False)
     if result.returncode not in (0, 1):
         result.check_returncode()
     return result.returncode == 0
@@ -110,7 +115,7 @@ def build(prepare_only, cached=False):
         str(CONTEXT),
     ]
     if prepare_only:
-        print(json.dumps({"context": str(CONTEXT), "command": ["podman", *command]}))
+        print(json.dumps({"context": str(CONTEXT), "command": [*PODMAN, *command]}))
         return
 
     check_host()
@@ -246,8 +251,8 @@ def doctor():
 
 
 def launch(project, command, *, mounts=None):
-    if not image_exists(IMAGE):
-        raise RuntimeError("Codex image is missing. Run `codex build` first.")
+    # Local Podman runs rootless for this UID. The run command checks the image.
+    check_local_host()
     check_nesting_host()
     name = identity(project)
     ports = proxy_ports()
@@ -259,8 +264,9 @@ def launch(project, command, *, mounts=None):
         "--env=COLORTERM",
         "--label",
         f"{PROJECT_LABEL}={name}",
+        # The image seeds this home for UID/GID 1000, which keep-id maps to us.
         "--volume",
-        f"{name}:{CONTAINER_HOME}:U",
+        f"{name}:{CONTAINER_HOME}",
         # The daemon's control socket points into this container's private /tmp.
         f"--mount=type=tmpfs,destination={CONTAINER_HOME}/.codex/app-server-control,"
         "tmpfs-mode=0700,notmpcopyup,U=true",
@@ -278,10 +284,12 @@ def launch(project, command, *, mounts=None):
     runtime = ["python", "-c", (CONTEXT / "runtime.py").read_text(encoding="utf-8")]
     if command[0] == "/usr/bin/codex" and JOB_CONTROL["has_job_control"]():
         status = JOB_CONTROL["run_podman"](
-            ["podman", *args], IMAGE, [*runtime, *command], job_control=True
+            [*PODMAN, *args], IMAGE, [*runtime, *command], job_control=True
         )
+        if status == 125 and not image_exists(IMAGE):
+            raise RuntimeError("Codex image is missing. Run `codex build` first.")
         sys.exit(128 - status if status < 0 else status)
-    os.execvp("podman", ["podman", *args, IMAGE, *runtime, *command])
+    os.execvp(PODMAN[0], [*PODMAN, *args, IMAGE, *runtime, *command])
 
 
 def main():
@@ -322,14 +330,15 @@ def main():
         if args.command == "build":
             build(args.prepare_only, args.cached)
             return
-        check_host()
         if args.command == "doctor":
+            check_host()
             doctor()
         else:
             project = project_path(args.project)
             if args.command == "shell":
                 launch(project, ["/bin/bash"])
             else:
+                check_host()
                 podman(
                     "stop",
                     "--ignore",
@@ -339,7 +348,6 @@ def main():
         return
 
     project, mounts, arguments = run_arguments(arguments)
-    check_host()
     launch(project, ["/usr/bin/codex", *arguments], mounts=mounts)
 
 
