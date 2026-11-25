@@ -5,27 +5,48 @@ local function git(args)
 end
 
 local function prewarm()
-    local lock = vim.json.decode(table.concat(vim.fn.readfile(vim.fn.stdpath("config") .. "/lazy-lock.json"), "\n"))
+    local lock_path = vim.fn.stdpath("config") .. "/lazy-lock.json"
+    local refresh_lock = vim.env.NVIM_REFRESH_LOCK == "1"
+    local lock = vim.json.decode(table.concat(vim.fn.readfile(lock_path), "\n"))
     if vim.g.nvim_image_bootstrap then
         -- Make LazyVim's imported specs available before Lazy resolves the lockfile.
-        for name, repository in pairs({ ["lazy.nvim"] = "folke/lazy.nvim", LazyVim = "LazyVim/LazyVim" }) do
+        for name, repository in pairs({
+            ["lazy.nvim"] = { path = "folke/lazy.nvim", ref = "stable" },
+            LazyVim = { path = "LazyVim/LazyVim", ref = "HEAD" },
+        }) do
             local directory = vim.fn.stdpath("data") .. "/lazy/" .. name
-            local revision = lock[name]
-            vim.fn.mkdir(directory, "p")
-            git({ "-C", directory, "init", "--quiet" })
-            git({ "-C", directory, "remote", "add", "origin", "https://github.com/" .. repository .. ".git" })
-            git({ "-C", directory, "fetch", "--quiet", "--depth", "1", "origin", revision.commit })
-            git({ "-C", directory, "checkout", "--quiet", "-B", revision.branch, "FETCH_HEAD" })
+            local url = "https://github.com/" .. repository.path .. ".git"
+            if refresh_lock then
+                -- A normal clone records the upstream branch and tracking ref for Lazy's lockfile.
+                git({ "clone", "--quiet", "--filter=blob:none", url, directory })
+                if repository.ref ~= "HEAD" then
+                    git({ "-C", directory, "checkout", "--quiet", repository.ref })
+                end
+            else
+                local revision = assert(lock[name], "Missing pin for " .. name)
+                vim.fn.mkdir(directory, "p")
+                git({ "-C", directory, "init", "--quiet" })
+                git({ "-C", directory, "remote", "add", "origin", url })
+                git({ "-C", directory, "fetch", "--quiet", "--depth", "1", "origin", revision.commit })
+                git({ "-C", directory, "checkout", "--quiet", "-B", revision.branch, "FETCH_HEAD" })
+            end
         end
         return
     end
 
     assert(vim.g.lazy_did_setup, "LazyVim failed to start")
     local lazy = require("lazy")
+    if refresh_lock then
+        require("lazy.manage.lock").update()
+        lock = vim.json.decode(table.concat(vim.fn.readfile(lock_path), "\n"))
+    end
     local specs = require("lazy.core.config").plugins
     for name, plugin in pairs(specs) do
         assert(plugin._.installed, "Could not install plugin: " .. name)
         local revision = lock[name]
+        if refresh_lock and plugin.url then
+            assert(revision, "Could not lock plugin: " .. name)
+        end
         if revision then
             assert(
                 git({ "-C", plugin.dir, "rev-parse", "HEAD" }) == revision.commit,

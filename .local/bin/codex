@@ -102,13 +102,13 @@ def check_sources():
             raise FileNotFoundError(f"Required file is missing: {CONTEXT / name}")
 
 
-def build(prepare_only, cached=False):
+def build(prepare_only=False, *, upgrade=False):
     check_sources()
     ports = proxy_ports()
     command = [
         "build",
-        "--pull=missing" if cached else "--pull=always",
-        "--layers=true" if cached else "--layers=false",
+        "--layers=true",
+        *(["--pull=always", "--no-cache"] if upgrade else ["--pull=missing"]),
         *([proxy_network(ports)] if ports else []),
         "-t",
         IMAGE,
@@ -302,8 +302,8 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     build_parser = commands.add_parser("build", help="build the standalone Codex image")
     build_parser.add_argument("--prepare-only", action="store_true")
-    build_parser.add_argument(
-        "--cached", action="store_true", help="reuse local base images and build layers"
+    commands.add_parser(
+        "upgrade", help="refresh the base image and rebuild with updated dependencies"
     )
     commands.add_parser("doctor", help="check the container environment")
     for name, help_text in (
@@ -322,13 +322,17 @@ def main():
         "-h",
         "--help",
         "build",
+        "upgrade",
         "doctor",
         "shell",
         "stop",
     }:
         args = parser.parse_args(arguments)
         if args.command == "build":
-            build(args.prepare_only, args.cached)
+            build(args.prepare_only)
+            return
+        if args.command == "upgrade":
+            build(upgrade=True)
             return
         if args.command == "doctor":
             check_host()

@@ -101,7 +101,7 @@ def proxy_network(extra_variables=()):
     return []
 
 
-def build(prepare_only, cached=False):
+def build(prepare_only=False, *, upgrade=False):
     check_sources()
     if not prepare_only:
         check_host()
@@ -117,9 +117,18 @@ def build(prepare_only, cached=False):
             symlinks=True,
             ignore=shutil.ignore_patterns("lazyvim.json"),
         )
-        build_options = (
-            ["--pull=missing", "--layers=true"] if cached else ["--pull=always"]
-        )
+        build_options = ["--layers=true", "--pull=missing"]
+        image_options = ["-t", IMAGE]
+        if upgrade:
+            (context / "nvim/lazy-lock.json").write_text("{}\n")
+            build_options = [
+                "--layers=true",
+                "--pull=always",
+                "--no-cache",
+                "--build-arg",
+                "NVIM_REFRESH_LOCK=1",
+            ]
+            image_options = ["--iidfile", str(context / "image-id")]
         npm_proxy_variables = ()
         if npm_proxy := os.environ.get("NPM_BUILD_PROXY"):
             build_options.extend(("--build-arg", f"NPM_BUILD_PROXY={npm_proxy}"))
@@ -128,8 +137,7 @@ def build(prepare_only, cached=False):
             "build",
             *build_options,
             *proxy_network(npm_proxy_variables),
-            "-t",
-            IMAGE,
+            *image_options,
             str(context),
         ]
         if prepare_only:
@@ -137,6 +145,34 @@ def build(prepare_only, cached=False):
             keep_context = True
         else:
             podman(*args)
+            if upgrade:
+                image = (context / "image-id").read_text().strip()
+                lock = podman(
+                    "run",
+                    "--rm",
+                    "--network=none",
+                    "--pull=never",
+                    "--read-only",
+                    "--entrypoint=/usr/bin/cat",
+                    image,
+                    "/opt/nvim-config/nvim/lazy-lock.json",
+                    stdout=subprocess.PIPE,
+                ).stdout
+                if not json.loads(lock):
+                    raise RuntimeError(
+                        "The upgraded image contains an empty plugin lock."
+                    )
+                lock_path = CONFIG / "lazy-lock.json"
+                with tempfile.NamedTemporaryFile(dir=CONFIG, delete=False) as pending:
+                    temporary = Path(pending.name)
+                    try:
+                        pending.write(lock)
+                        pending.close()
+                        temporary.chmod(lock_path.stat().st_mode & 0o777)
+                        podman("tag", image, IMAGE)
+                        temporary.replace(lock_path)
+                    finally:
+                        temporary.unlink(missing_ok=True)
     finally:
         if not keep_context:
             shutil.rmtree(context)
@@ -333,7 +369,9 @@ def launch(project, command, *, mounts=None):
         args.append("--runtime=crun")
     # Check for a missing image only if Podman fails.
     try:
-        status = JOB_CONTROL["run_podman"](args, IMAGE, command, job_control=job_control)
+        status = JOB_CONTROL["run_podman"](
+            args, IMAGE, command, job_control=job_control
+        )
     finally:
         if container is not None:
             remove_editor_in_background(container)
@@ -356,8 +394,8 @@ def main():
         epilog="Set NPM_BUILD_PROXY to override the proxy for npm during builds.",
     )
     build_parser.add_argument("--prepare-only", action="store_true")
-    build_parser.add_argument(
-        "--cached", action="store_true", help="reuse local base images and build layers"
+    commands.add_parser(
+        "upgrade", help="refresh the base image and rebuild with updated dependencies"
     )
     for name, help_text in (
         ("shell", "open a shell in the editor image"),
@@ -381,13 +419,17 @@ def main():
         "-h",
         "--help",
         "build",
+        "upgrade",
         "doctor",
         "shell",
         "stop",
     }:
         args = parser.parse_args(editor_args)
         if args.command == "build":
-            build(args.prepare_only, args.cached)
+            build(args.prepare_only)
+            return
+        if args.command == "upgrade":
+            build(upgrade=True)
             return
         if args.command == "doctor":
             check_host()

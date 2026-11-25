@@ -27,6 +27,8 @@ CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "zed-bo
 ARTIFACTS = CACHE / "artifacts"
 CONTAINER_HOSTNAME = "zed-box"
 PODMAN = ("podman", "--remote=false")
+TOOL_RELEASE_KEYS = ("id", "repo", "tag", "asset", "destination")
+TOOL_MANIFESTS = ("package.json", "package-lock.json", "releases.json")
 PROXY_VARIABLES = (
     "HTTP_PROXY",
     "HTTPS_PROXY",
@@ -48,7 +50,7 @@ def read_json(path):
 def write_json(path, data):
     path = Path(path)
     temp = path.with_suffix(path.suffix + ".tmp")
-    temp.write_text(json.dumps(data, indent=2) + "\n")
+    temp.write_text(json.dumps(data, indent=4) + "\n")
     temp.replace(path)
 
 
@@ -129,12 +131,13 @@ def merge_settings(shared, overrides):
     return shared
 
 
-def lock_tool_binaries():
+def lock_tool_binaries(declarations, *, upgrade=False):
     tools = []
-    for tool in read_json(ROOT / "tools/releases.json"):
+    for tool in declarations:
+        endpoint = "latest" if upgrade else f"tags/{tool['tag']}"
         metadata_path = ARTIFACTS / (tool["id"] + "-release.json")
         fetch(
-            f"https://api.github.com/repos/{tool['repo']}/releases/tags/{tool['tag']}",
+            f"https://api.github.com/repos/{tool['repo']}/releases/{endpoint}",
             metadata_path,
         )
         metadata = read_json(metadata_path)
@@ -151,6 +154,7 @@ def lock_tool_binaries():
         tools.append(
             dict(
                 tool,
+                tag=metadata["tag_name"] if upgrade else tool["tag"],
                 file=filename,
                 sha256=expected[7:],
                 url=asset["browser_download_url"],
@@ -159,7 +163,7 @@ def lock_tool_binaries():
     return tools
 
 
-def lock_artifacts(release):
+def resolve_artifacts(release, tools, *, upgrade=False):
     import tomllib
 
     if platform.machine() != "x86_64":
@@ -221,8 +225,8 @@ def lock_artifacts(release):
                 "url": f"https://api.zed.dev/extensions/{extension}/{manifest['version']}/download",
             }
         )
-    lock = {
-        "tools": lock_tool_binaries(),
+    return {
+        "tools": lock_tool_binaries(tools, upgrade=upgrade),
         "zed": {
             "version": metadata["tag_name"],
             "url": asset["browser_download_url"],
@@ -231,7 +235,11 @@ def lock_artifacts(release):
         },
         "extensions": extensions,
     }
-    write_json(ROOT / "artifacts.lock.json", lock)
+
+
+def lock_artifacts(release):
+    tools = read_json(ROOT / "tools/releases.json")
+    write_json(ROOT / "artifacts.lock.json", resolve_artifacts(release, tools))
     print(
         "Wrote artifacts.lock.json. Zed, extensions and upstream binaries are locked."
     )
@@ -251,19 +259,19 @@ def build_directory(preserve=False):
             shutil.rmtree(directory)
 
 
-def build(config, prepare_only=False, cached=False):
-    if not (ROOT / "artifacts.lock.json").exists():
+def build(config, prepare_only=False, *, upgraded_sources=None):
+    sources = upgraded_sources or ROOT
+    if not (sources / "artifacts.lock.json").exists():
         fail(
             "No artifact lock yet. Run zed lock from a host terminal with network access, then zed build."
         )
-    lock = read_json(ROOT / "artifacts.lock.json")
+    lock = read_json(sources / "artifacts.lock.json")
     extensions = declared_extensions()
     if set(extensions) != {e["id"] for e in lock["extensions"]}:
         fail("Extension list changed; run lock first.")
-    declared_tools = read_json(ROOT / "tools/releases.json")
-    source_keys = ("id", "repo", "tag", "asset", "destination")
+    declared_tools = read_json(sources / "tools/releases.json")
     if [
-        {key: tool[key] for key in source_keys} for tool in lock["tools"]
+        {key: tool[key] for key in TOOL_RELEASE_KEYS} for tool in lock["tools"]
     ] != declared_tools:
         fail("Tool release declarations changed; run lock first.")
     with build_directory(preserve=prepare_only) as directory:
@@ -276,6 +284,9 @@ def build(config, prepare_only=False, cached=False):
                 context / name,
                 ignore=shutil.ignore_patterns("node_modules", "__pycache__"),
             )
+        if upgraded_sources:
+            for name in TOOL_MANIFESTS:
+                shutil.copy2(sources / "tools" / name, context / "tools" / name)
         (context / "zed").mkdir()
         settings = merge_settings(
             read_json(ZED_CONFIG / "settings.json"),
@@ -296,7 +307,7 @@ def build(config, prepare_only=False, cached=False):
         ARTIFACTS.mkdir(parents=True, exist_ok=True)
         (context / "artifacts").mkdir()
         shutil.copy2(
-            ROOT / "artifacts.lock.json", context / "artifacts/artifacts.lock.json"
+            sources / "artifacts.lock.json", context / "artifacts/artifacts.lock.json"
         )
         for item in [lock["zed"], *lock["extensions"], *lock["tools"]]:
             source = ARTIFACTS / item["file"]
@@ -308,8 +319,12 @@ def build(config, prepare_only=False, cached=False):
         command = [
             *PODMAN,
             "build",
-            "--pull=missing" if cached else "--pull=always",
-            "--layers=true" if cached else "--layers=false",
+            "--layers=true",
+            *(
+                ["--pull=always", "--no-cache"]
+                if upgraded_sources
+                else ["--pull=missing"]
+            ),
             "--http-proxy=true",
             "--build-arg",
             "BASE_IMAGE=" + config["base_image"],
@@ -325,6 +340,69 @@ def build(config, prepare_only=False, cached=False):
             print(json.dumps({"context": str(context), "command": command}))
         else:
             run(command)
+
+
+def upgrade(config):
+    check_local_host()
+    with tempfile.TemporaryDirectory(prefix=".upgrade-", dir=ROOT) as directory:
+        sources = Path(directory)
+        tools = sources / "tools"
+        tools.mkdir()
+        lock = resolve_artifacts(
+            "latest", read_json(ROOT / "tools/releases.json"), upgrade=True
+        )
+        write_json(sources / "artifacts.lock.json", lock)
+        write_json(
+            tools / "releases.json",
+            [{key: tool[key] for key in TOOL_RELEASE_KEYS} for tool in lock["tools"]],
+        )
+
+        package = read_json(ROOT / "tools/package.json")
+        write_json(tools / "package.json", package)
+        # Resolve every direct dependency at its latest release and regenerate
+        # the transitive lock in an empty directory using Arch's npm.
+        npm_proxy = os.environ.get("NPM_BUILD_PROXY")
+        proxy_variables = (*PROXY_VARIABLES, "NPM_BUILD_PROXY")
+        ports = loopback_proxy_ports(proxy_variables)
+        proxy_options = []
+        if npm_proxy:
+            proxy_options = [
+                "--env",
+                f"npm_config_proxy={npm_proxy}",
+                "--env",
+                f"npm_config_https_proxy={npm_proxy}",
+            ]
+        run(
+            [
+                *PODMAN,
+                "run",
+                "--rm",
+                "--pull=always",
+                "--http-proxy=true",
+                "--userns=host",
+                "--user=0:0",
+                *([pasta_network(ports)] if ports else []),
+                *proxy_options,
+                "--volume",
+                f"{tools}:/tools:Z",
+                "--workdir",
+                "/tools",
+                "--entrypoint=/bin/sh",
+                config["base_image"],
+                "-ec",
+                "pacman -Syu --noconfirm --needed npm && exec npm install --package-lock-only "
+                '--save-exact --ignore-scripts --no-audit --no-fund "$@"',
+                "zed-upgrade",
+                *(f"{name}@latest" for name in package["dependencies"]),
+            ]
+        )
+        for name in ("package.json", "package-lock.json"):
+            manifest = tools / name
+            write_json(manifest, read_json(manifest))
+        build(config, upgraded_sources=sources)
+        for name in TOOL_MANIFESTS:
+            (tools / name).replace(ROOT / "tools" / name)
+        (sources / "artifacts.lock.json").replace(ROOT / "artifacts.lock.json")
 
 
 def project_path(value):
@@ -674,7 +752,9 @@ def display_options(config):
                 details = log.read().strip()
                 # Xephyr exits 1 when the host window manager kills its X client.
                 if status != 1 or "Fatal server error" in details:
-                    fail(f"Xephyr exited unexpectedly with status {status}\n{details}".rstrip())
+                    fail(
+                        f"Xephyr exited unexpectedly with status {status}\n{details}".rstrip()
+                    )
         finally:
             os.close(read_fd)
             if write_fd != -1:
@@ -727,7 +807,7 @@ def launch(config, project, action):
 
 
 def main():
-    commands = {"lock", "build", "run", "shell", "stop", "doctor"}
+    commands = {"lock", "build", "upgrade", "run", "shell", "stop", "doctor"}
     arguments = sys.argv[1:]
     if not arguments or (
         arguments[0] not in commands and not arguments[0].startswith("-")
@@ -735,7 +815,8 @@ def main():
         arguments.insert(0, "run")
     parser = argparse.ArgumentParser(
         description=__doc__,
-        epilog="Set NPM_BUILD_PROXY to override the proxy for npm during builds.",
+        epilog="Use upgrade to refresh Arch, Zed, extensions and language tools. "
+        "Set NPM_BUILD_PROXY to override the proxy for npm during builds.",
     )
     parser.add_argument("command", choices=sorted(commands))
     parser.add_argument("project", nargs="?", default=".")
@@ -747,17 +828,20 @@ def main():
         action="store_true",
         help="Prepare a verified build context and print the Podman command",
     )
-    parser.add_argument(
-        "--cached", action="store_true", help="reuse local base images and build layers"
-    )
     args = parser.parse_args(arguments)
-    if args.cached and args.command != "build":
-        parser.error("--cached is only valid with build")
+    if args.prepare_only and args.command != "build":
+        parser.error("--prepare-only is only valid with build")
     config = read_json(ROOT / "container.json")
-    if args.command == "lock":
-        lock_artifacts(args.release)
-    elif args.command == "build":
-        build(config, args.prepare_only, args.cached)
+    if args.command in {"lock", "build", "upgrade"}:
+        CACHE.mkdir(parents=True, exist_ok=True)
+        with (CACHE / "build.lock").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            if args.command == "lock":
+                lock_artifacts(args.release)
+            elif args.command == "build":
+                build(config, args.prepare_only)
+            else:
+                upgrade(config)
     elif args.command == "doctor":
         host_check()
         print(

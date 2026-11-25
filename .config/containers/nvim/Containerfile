@@ -23,13 +23,14 @@ RUN install -d -o 1000 -g 1000 "$XDG_DATA_HOME" /opt/nvim-cache-seed
 USER 1000:1000
 # Keep installer caches and temporary files out of the dependency layer.
 ARG NPM_BUILD_PROXY
+ARG NVIM_REFRESH_LOCK=0
 RUN if test -n "$NPM_BUILD_PROXY"; then \
       export npm_config_proxy="$NPM_BUILD_PROXY" npm_config_https_proxy="$NPM_BUILD_PROXY"; \
     fi \
  && build_tmp="$(mktemp -d)" \
  && mkdir "$build_tmp/tmp" \
  && export TMPDIR="$build_tmp/tmp" XDG_CACHE_HOME="$build_tmp/cache" XDG_STATE_HOME="$build_tmp/state" \
-    npm_config_cache="$build_tmp/npm" NODE_COMPILE_CACHE="$build_tmp/node-compile-cache" \
+    NVIM_REFRESH_LOCK="$NVIM_REFRESH_LOCK" npm_config_cache="$build_tmp/npm" NODE_COMPILE_CACHE="$build_tmp/node-compile-cache" \
  && nvim --headless -u NONE -i NONE --cmd 'let g:nvim_image_bootstrap = 1' \
     -c 'luafile /usr/local/share/nvim-prewarm.lua' -c 'qa!' \
  && nvim --headless -i NONE --cmd 'let g:nvim_image_prewarm = 1' \
