@@ -7,6 +7,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 AUTH_HOME = Path("/run/codex-auth")
+PROFILES = Path("/run/codex-profiles")
+DEFAULT_CONFIG = Path("/run/codex-config/config.toml")
 LEGACY_DAEMON_RELEASES = Path("/home/nvim/.codex/packages/app-server-daemon/releases")
 
 
@@ -47,6 +49,66 @@ def link_credentials(home):
             staging.replace(link)
 
 
+def writable_config_path(home):
+    # Prefer the dedicated writable mount, then CODEX_HOME itself, then the
+    # runtime directory as a last resort.
+    for candidate in (DEFAULT_CONFIG, home / "config.toml"):
+        directory = candidate.parent
+        if os.path.isdir(directory) and os.access(directory, os.W_OK):
+            return candidate
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
+    return runtime / "codex-config.toml"
+
+
+def seed_trust(home):
+    # Codex persists folder trust in config.toml. Point CODEX_HOME's config.toml
+    # at a writable file and pre-trust the mounted project directories so the
+    # first trust write does not fail on a read-only config.
+    config = writable_config_path(home)
+    try:
+        config.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    except OSError:
+        return
+    try:
+        text = config.read_text(encoding="utf-8")
+    except OSError:
+        text = ""
+
+    directories = {Path.cwd()}
+    if len(sys.argv) > 1:
+        command = sys.argv[1:]
+        for flag in ("--add-dir", "-C", "--cd"):
+            for index, argument in enumerate(command):
+                if argument == flag and index + 1 < len(command):
+                    directories.add(Path(command[index + 1]))
+                elif argument.startswith(flag + "="):
+                    directories.add(argument.partition("=")[2])
+
+    for directory in sorted(directories):
+        entry = f'[projects."{directory}"]'
+        if entry not in text:
+            text = text.rstrip("\n") + "\n\n" + entry + '\ntrust_level = "trusted"\n'
+
+    if not text:
+        return
+
+    try:
+        config.write_text(text, encoding="utf-8")
+    except OSError:
+        return
+
+    link = home / "config.toml"
+    if link == config or (link.is_symlink() and link.readlink() == config):
+        return
+    try:
+        with TemporaryDirectory(dir=home) as scratch:
+            staging = Path(scratch) / "config.toml"
+            staging.symlink_to(config)
+            staging.replace(link)
+    except OSError:
+        pass
+
+
 def main():
     command = sys.argv[1:]
     if command[:2] == ["/usr/bin/codex", "logout"]:
@@ -56,6 +118,22 @@ def main():
         home = Path(os.environ["CODEX_HOME"])
         migrate_daemon_selection(home)
         link_credentials(home)
+        seed_trust(home)
+        for profile in home.glob("*.config.toml"):
+            try:
+                if (
+                    profile.is_symlink()
+                    and not profile.exists()
+                    and profile.readlink() == PROFILES / profile.name
+                ):
+                    profile.unlink(missing_ok=True)
+            except FileNotFoundError:
+                pass
+        for profile in PROFILES.glob("*.config.toml"):
+            try:
+                (home / profile.name).symlink_to(profile)
+            except FileExistsError:
+                pass
     os.execvp(command[0], command)
 
 

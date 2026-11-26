@@ -22,6 +22,10 @@ CONTAINER_HOME = "/home/codex"
 WORKSPACE = Path("/workspace")
 EXTRA_MOUNTS = Path("/mnt/codex")
 AUTH_MOUNT = "/run/codex-auth"
+PROFILES = CONTEXT / "profiles"
+PROFILES_MOUNT = "/run/codex-profiles"
+CONFIG_MOUNT = "/run/codex-config"
+LOCAL_MODEL_PORT = 9931
 JOB_CONTROL = runpy.run_path(str(CONTEXT.parent / "job_control.py"))
 
 
@@ -88,6 +92,33 @@ def proxy_network(ports):
     return "--network=pasta" + (
         ":" + ",".join(f"-T,{port}" for port in ports) if ports else ""
     )
+
+
+def selected_profile(arguments):
+    profile = None
+    tokens = iter(arguments)
+    for argument in tokens:
+        if argument == "--":
+            break
+        if argument in {"-p", "--profile"}:
+            profile = next(tokens, None)
+        elif argument.startswith("--profile="):
+            profile = argument.partition("=")[2]
+        elif argument.startswith("-p"):
+            profile = argument[2:].removeprefix("=")
+    return profile if profile and not profile.startswith("-") else None
+
+
+def default_embedded_mode(arguments):
+    boundary = arguments.index("--") if "--" in arguments else len(arguments)
+    options = arguments[:boundary]
+    if selected_profile(options) and not any(
+        argument in {"--no-daemon", "--remote", "agents", "remote-control"}
+        or argument.startswith("--remote=")
+        for argument in options
+    ):
+        return ["--no-daemon", *arguments]
+    return arguments
 
 
 def check_sources():
@@ -163,6 +194,19 @@ def auth_volume():
     return f"{home}:{AUTH_MOUNT}:z"
 
 
+def config_volume(project):
+    # Codex persists folder trust in config.toml, and the profile configs are
+    # read-only, so give each project a writable config directory.
+    data = Path(os.environ.get("XDG_DATA_HOME", ""))
+    if not data.is_absolute():
+        data = Path.home() / ".local/share"
+    home = (data / "codex-container/config" / identity(project)).resolve()
+    if ":" in str(home):
+        raise RuntimeError("The Codex config directory cannot contain a colon.")
+    home.mkdir(mode=0o700, parents=True, exist_ok=True)
+    return f"{home}:{CONFIG_MOUNT}:z"
+
+
 def run_arguments(arguments):
     use_run_separator = arguments[:1] == ["run"]
     if use_run_separator:
@@ -191,6 +235,21 @@ def run_arguments(arguments):
             native_args.append(option)
             extra_paths[len(native_args)] = path
             native_args.append(path)
+
+    if not selected_profile(native_args) and native_args[:1] not in (
+        ["login"],
+        ["logout"],
+        ["--help"],
+        ["-h"],
+        ["--version"],
+        ["-V"],
+    ):
+        raise RuntimeError(
+            "Choose a profile with `codex --profile NAME` (or `codex -p NAME`).\n"
+            "Available profiles:\n"
+            "  openai              Hosted OpenAI models\n"
+            "  llama-server-local  Local models"
+        )
 
     project = project_path(explicit_project)
     mounts = {}
@@ -256,9 +315,16 @@ def launch(project, command, *, mounts=None):
     check_nesting_host()
     name = identity(project)
     ports = proxy_ports()
+    model_port = (
+        LOCAL_MODEL_PORT
+        if command[0] == "/usr/bin/codex"
+        and selected_profile(command[1:]) == "llama-server-local"
+        else None
+    )
+    network_ports = sorted({*ports, model_port}) if model_port else ports
     args = [
         *container_options(),
-        proxy_network(ports),
+        proxy_network(network_ports),
         "--interactive",
         "--env=TERM",
         "--env=COLORTERM",
@@ -272,7 +338,19 @@ def launch(project, command, *, mounts=None):
         "tmpfs-mode=0700,notmpcopyup,U=true",
         "--volume",
         auth_volume(),
+        "--volume",
+        config_volume(project),
+        "--volume",
+        f"{PROFILES}:{PROFILES_MOUNT}:ro,z",
     ]
+    if model_port:
+        bypass = ",".join(
+            filter(
+                None,
+                (os.environ.get("NO_PROXY"), os.environ.get("no_proxy"), "127.0.0.1"),
+            )
+        )
+        args.extend((f"--env=NO_PROXY={bypass}", f"--env=no_proxy={bypass}"))
     if ports:
         args.append("--env=CODEX_PASTA_PROXY_PORTS=" + ",".join(map(str, ports)))
     if sys.stdin.isatty() and sys.stdout.isatty():
@@ -297,7 +375,9 @@ def main():
         description=__doc__,
         epilog="Other arguments go to Codex. Use `codex login --device-auth` to sign in "
         "for all projects, or `codex run -- --help` for Codex's own help. "
-        "Use `codex --project DIR --add-dir DIR` to mount a workspace and extra directories.",
+        "Use `codex --project DIR --add-dir DIR` to mount a workspace and extra directories. "
+        "Select a model provider with `--profile openai` or `--profile llama-server-local`. "
+        "Profile sessions default to embedded mode.",
     )
     commands = parser.add_subparsers(dest="command", required=True)
     build_parser = commands.add_parser("build", help="build the standalone Codex image")
@@ -352,7 +432,9 @@ def main():
         return
 
     project, mounts, arguments = run_arguments(arguments)
-    launch(project, ["/usr/bin/codex", *arguments], mounts=mounts)
+    launch(
+        project, ["/usr/bin/codex", *default_embedded_mode(arguments)], mounts=mounts
+    )
 
 
 if __name__ == "__main__":

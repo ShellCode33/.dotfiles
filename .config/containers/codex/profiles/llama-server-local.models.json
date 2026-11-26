@@ -1,0 +1,38 @@
+{
+    "models": [
+        {
+            "slug": "qwen3.6-35b-a3b-ud-q4_k_xl-8k-mtp",
+            "display_name": "Qwen3.6 35B A3B",
+            "description": "Local Q4_K_XL model with MTP and an 8K context.",
+            "base_instructions": "You are a coding assistant working with the user in a shared workspace. Inspect the relevant files, use the available tools when needed, and verify changes before reporting the result.",
+            "input_modalities": ["text"],
+            "shell_type": "unified_exec",
+            "visibility": "list",
+            "supported_in_api": true,
+            "priority": 0,
+            "supported_reasoning_levels": [],
+            "supports_reasoning_summary_parameter": false,
+            "default_reasoning_summary": "none",
+            "support_verbosity": false,
+            "truncation_policy": { "mode": "bytes", "limit": 10000 },
+            "experimental_supported_tools": []
+        },
+        {
+            "slug": "qwen3.8-flash-next-125b-a6b-q2_0-8k-mtp",
+            "display_name": "Qwen3.8 Flash Next 125B A6B",
+            "description": "Local Q2_0 model with MTP and an 8K context.",
+            "base_instructions": "You are a coding assistant working with the user in a shared workspace. Inspect the relevant files, use the available tools when needed, and verify changes before reporting the result.",
+            "input_modalities": ["text"],
+            "shell_type": "unified_exec",
+            "visibility": "list",
+            "supported_in_api": true,
+            "priority": 1,
+            "supported_reasoning_levels": [],
+            "supports_reasoning_summary_parameter": false,
+            "default_reasoning_summary": "none",
+            "support_verbosity": false,
+            "truncation_policy": { "mode": "bytes", "limit": 10000 },
+            "experimental_supported_tools": []
+        }
+    ]
+}

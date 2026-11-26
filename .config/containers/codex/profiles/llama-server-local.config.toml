@@ -1,0 +1,8 @@
+model_provider = "llama-server-local"
+model = "qwen3.6-35b-a3b-ud-q4_k_xl-8k-mtp"
+model_catalog_json = "/run/codex-profiles/llama-server-local.models.json"
+
+[model_providers.llama-server-local]
+name = "Local llama-server"
+base_url = "http://127.0.0.1:9931/v1"
+wire_api = "responses"
