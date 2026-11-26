@@ -1,0 +1,32 @@
+[Unit]
+Description=Local llama-server with llama.cpp swap proxy and AMD Vulkan
+
+[Container]
+Image=localhost/llama-server:latest
+Pull=never
+ContainerName=llama-server
+Network=pasta
+PublishPort=127.0.0.1:9931:9931
+UserNS=keep-id
+PodmanArgs=--runtime=crun --group-add=keep-groups
+# Quadlet and Podman use colons to delimit device mapping fields.
+AddDevice=/dev/dri/renderD128
+AddDevice=/dev/dri/renderD129
+Exec=-config /etc/llama-server/config.yaml -listen 0.0.0.0:9931 -watch-config
+Volume=%h/.local/share/llama-server/models:/models:ro
+Volume=%h/.config/containers/systemd/llama-server:/etc/llama-server:ro
+Volume=%h/.cache/llama-vulkan:/cache:rw
+Environment=HOME=/tmp XDG_CACHE_HOME=/cache
+ReadOnly=true
+NoNewPrivileges=true
+DropCapability=all
+RunInit=true
+
+[Service]
+ExecStartPre=/usr/bin/install -d -m 0700 %h/.cache/llama-vulkan
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+
+[Install]
+WantedBy=default.target

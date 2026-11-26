@@ -1,0 +1,63 @@
+healthCheckTimeout: 600
+logToStdout: "proxy,upstream"
+globalTTL: 1800
+
+macros:
+    server: >-
+        /usr/local/bin/llama-server
+        --host 127.0.0.1 --log-verbosity 4
+        --device Vulkan0
+        --parallel 1
+        --threads 12
+        --threads-batch 12
+        --ctx-size 0 --batch-size 2048 --ubatch-size 512
+        --flash-attn auto --cache-type-k q8_0 --cache-type-v q8_0
+        --gpu-layers auto --fit on --fit-target 512 --split-mode layer
+        --no-op-offload
+        --spec-draft-n-max 2
+        --spec-draft-n-ubatch 128
+
+models:
+    qwen3.6-35b-a3b-ud-q4_k_xl-8k-mtp:
+        env:
+            - "DRI_PRIME=pci-0000_03_00_0!"
+        cmd: >-
+            ${server} --port ${PORT} --alias ${MODEL_ID}
+            --model /models/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf
+            --cache-ram 8192
+            --reasoning-budget 512
+            --load-mode none
+            --lazy-mode off
+            --spec-type draft-mtp
+            --spec-draft-type-k q8_0
+            --spec-draft-type-v q8_0
+            --spec-draft-cpu-moe
+            --spec-draft-model /models/MTP/mtp-Qwen3.6-35B-A3B-Q4_0.gguf
+
+    qwen3.8-flash-next-125b-a6b-q2_0-8k-mtp:
+        env:
+            - "DRI_PRIME=pci-0000_03_00_0!"
+        cmd: >-
+            ${server} --port ${PORT} --alias ${MODEL_ID}
+            --model /models/Q2_0/Qwen3.8-Flash-Next-GSQ-RCO-Q2_0-00001-of-00002.gguf
+            --cache-ram 0
+            --reasoning-effort low
+            --load-mode mmap
+            --lazy-mode auto
+            --spec-type draft-mtp
+            --spec-draft-type-k q8_0
+            --spec-draft-type-v q8_0
+            --spec-draft-cpu-moe
+            --spec-draft-model /models/MTP/mtp-Qwen3.8-Flash-Next-Q4_K_M.gguf
+
+routing:
+    router:
+        use: group
+        settings:
+            groups:
+                local:
+                    swap: true
+                    exclusive: true
+                    members:
+                        - qwen3.6-35b-a3b-ud-q4_k_xl-8k-mtp
+                        - qwen3.8-flash-next-125b-a6b-q2_0-8k-mtp

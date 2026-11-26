@@ -8,3 +8,5 @@
 !.local/share/applications/pdf.desktop
 !.local/share/applications/text.desktop
 !.local/share/applications/video.desktop
+
+.local/share/llama-server/models/

@@ -1,0 +1,50 @@
+FROM docker.io/library/archlinux:base AS runtime
+
+RUN pacman -Syu --noconfirm --needed vulkan-radeon vulkan-icd-loader gcc-libs \
+  && pacman -Scc --noconfirm
+
+FROM runtime AS build
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+ARG LLAMA_CPP_TAG=v1.1.0
+ARG LLAMA_SWAP_VERSION=276
+ARG LLAMA_SWAP_SHA256=37493a0f725e407a3a96cf26927cc04c3e544b9a55a1141e267510901f74aef8
+
+RUN pacman -S --noconfirm --needed \
+  git curl gcc cmake ninja vulkan-headers shaderc spirv-headers \
+  && git clone --depth 1 --branch "${LLAMA_CPP_TAG}" https://github.com/ggml-org/llama.cpp /src \
+  && cmake -S /src -B /build -G Ninja \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DBUILD_SHARED_LIBS=OFF \
+  -DGGML_NATIVE=ON \
+  -DGGML_VULKAN=ON \
+  -DGGML_OPENMP=ON \
+  -DGGML_CPU_REPACK=ON \
+  -DGGML_LLAMAFILE=ON \
+  -DLLAMA_BUILD_TESTS=OFF \
+  -DLLAMA_BUILD_EXAMPLES=OFF \
+  -DLLAMA_BUILD_TOOLS=ON \
+  -DLLAMA_BUILD_SERVER=ON \
+  -DLLAMA_BUILD_UI=OFF \
+  && cmake --build /build --parallel 4 --target llama-server llama-bench \
+  && /build/bin/llama-server --version
+
+RUN curl -fL --retry 3 -o /tmp/llama-swap.tar.gz \
+  "https://github.com/mostlygeek/llama-swap/releases/download/v${LLAMA_SWAP_VERSION}/llama-swap_${LLAMA_SWAP_VERSION}_linux_amd64.tar.gz" \
+  && printf '%s  %s\n' "${LLAMA_SWAP_SHA256}" /tmp/llama-swap.tar.gz | sha256sum -c - \
+  && mkdir /swap \
+  && tar -xzf /tmp/llama-swap.tar.gz -C /swap \
+  && /swap/llama-swap -version
+
+FROM runtime
+
+COPY --from=build \
+  /build/bin/llama-server \
+  /build/bin/llama-bench \
+  /swap/llama-swap \
+  /usr/local/bin/
+
+EXPOSE 9931
+ENTRYPOINT ["/usr/local/bin/llama-swap"]
+CMD ["-config", "/etc/llama-server/config.yaml", "-listen", "0.0.0.0:9931", "-watch-config"]

@@ -1,0 +1,15 @@
+[Unit]
+Description=Build the llama.cpp Vulkan llama-server image
+
+[Build]
+ImageTag=localhost/llama-server:latest
+File=llama-server/Containerfile
+SetWorkingDirectory=unit
+Network=host
+Pull=missing
+
+[Service]
+TimeoutStartSec=3600
+Environment=HTTP_PROXY=http://127.0.0.1:8080 HTTPS_PROXY=http://127.0.0.1:8080
+Environment=http_proxy=http://127.0.0.1:8080 https_proxy=http://127.0.0.1:8080
+Environment=NO_PROXY=localhost,127.0.0.1,::1 no_proxy=localhost,127.0.0.1,::1

@@ -62,8 +62,8 @@ if lspci | grep -q 'RX 6600'; then
     export HSA_OVERRIDE_GFX_VERSION=10.3.0
 fi
 
-# llamacpp configuration
-export LLAMA_BASE_URL="http://localhost:11434/v1"
+# llamacpp configuration: the llama-server quadlet publishes on port 9931
+export LLAMA_BASE_URL="http://127.0.0.1:9931/v1"
 
 case "$(tty)" in
 
